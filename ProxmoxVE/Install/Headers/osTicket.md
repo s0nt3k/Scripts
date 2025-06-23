@@ -4,5 +4,5 @@ osTicket is an open-source support ticket system that helps small businesses and
 ---
 
 ```
-bash -c "$(curl -fsSL https://raw.githubusercontent.com/s0nt3k/Scripts/refs/heads/main/Proxmox%20Helper%20Scripts/install-osticket-lxc.sh)"
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/s0nt3k/Scripts/refs/heads/main/ProxmoxVE/Install/create-osticket-container.sh)"
 ```
