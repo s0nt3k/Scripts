@@ -8,3 +8,9 @@
 ```
 bash -c "$(curl -fsSL https://raw.githubusercontent.com/s0nt3k/Scripts/refs/heads/main/ProxmoxVE/Install/Debian_RequestTrackerIR.sh)"
 ```
+
+```
+bash -c "$(curl -fsSL https://raw.githubusercontent.com/s0nt3k/Scripts/refs/heads/main/ProxmoxVE/Install/create_rt_rtir_lxc.sh)"
+```
+
+
