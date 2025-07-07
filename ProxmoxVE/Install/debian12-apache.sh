@@ -1,7 +1,6 @@
 #!/bin/bash
 
 # === Configuration Parameters ===
-CTID=120
 HOSTNAME=request-tracker
 PASSWORD='ChangeThisPassword123!'
 TEMPLATE='local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst'
