@@ -2,16 +2,16 @@
 
 # === Configuration Parameters ===
 CTID=120
-HOSTNAME=debian12-apache
+HOSTNAME=request-tracker
 PASSWORD='ChangeThisPassword123!'
 TEMPLATE='local:vztmpl/debian-12-standard_12.2-1_amd64.tar.zst'
 STORAGE='local-lvm'
-DISK_SIZE='4G'
-MEMORY='1024'
-SWAP='512'
+DISK_SIZE='16G'
+MEMORY='4096'
+SWAP='4096'
 CPUS=2
-IP_ADDRESS='dhcp'
-GATEWAY=''
+IP_ADDRESS='172.16.1.24/24'
+GATEWAY='172.16.1.1'
 BRIDGE='vmbr0'
 
 # === Download Debian 12 Template if Needed ===
