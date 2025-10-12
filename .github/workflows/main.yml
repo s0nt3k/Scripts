@@ -1,0 +1,5 @@
+            - name: Install powershell
+  # You may pin to the exact commit or the version.
+  # uses: cakhanif/action-install-powershell@9287716f19f5547fb975cd59dc23b286fabffdf8
+  uses: cakhanif/action-install-powershell@v1
+          
