@@ -1,0 +1,321 @@
+
+
+<html>
+<head>
+    <title>Cyber-TeK(IT) • OS & User Info</title>
+    <HTA:APPLICATION
+        APPLICATIONNAME="Cyber-TeK(IT) System Info"
+        ID="CyberTekSystemInfo"
+        VERSION="1.0"
+        SCROLL="no"
+        SINGLEINSTANCE="yes"
+        BORDER="thin"
+        BORDERSTYLE="normal"
+        CAPTION="yes"
+        SHOWINTASKBAR="yes"
+        WINDOWSTATE="normal"
+    />
+    <meta http-equiv="X-UA-Compatible" content="IE=9" />
+    <style>
+        html, body {
+            margin: 0;
+            padding: 0;
+            font-family: Segoe UI, Tahoma, Arial, sans-serif;
+            background: #0e0f13;
+            color: #e6e6e6;
+        }
+
+        /* Header - locked template: blue header + Close button */
+        .header {
+            background: linear-gradient(90deg, #1166ff, #0b4fd1);
+            color: white;
+            padding: 14px 18px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            border-bottom: 2px solid rgba(255,255,255,0.15);
+        }
+        .header .title {
+            font-size: 18px;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+        .header .actions {
+            display: flex;
+            gap: 8px;
+        }
+        .btn {
+            border: 0;
+            padding: 8px 12px;
+            border-radius: 12px;
+            cursor: hand;
+            cursor: pointer;
+            background: #1b1f2a;
+            color: #e6e6e6;
+            font-size: 12px;
+            transition: filter 0.15s ease;
+        }
+        .btn:hover { filter: brightness(1.1); }
+        .btn-primary {
+            background: #2257ff;
+            color: white;
+        }
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+
+        /* Layout */
+        .container {
+            padding: 18px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 14px;
+        }
+        .card {
+            background: #151821;
+            border: 1px solid #1f2330;
+            border-radius: 16px;
+            padding: 16px;
+            box-shadow: 0 6px 24px rgba(0,0,0,0.35);
+        }
+        .card h2 {
+            margin: 0 0 10px 0;
+            font-size: 16px;
+            color: #8fb4ff;
+            font-weight: 600;
+        }
+        .kv {
+            display: grid;
+            grid-template-columns: 220px 1fr;
+            row-gap: 10px;
+        }
+        .kv .k {
+            color: #9aa7bd;
+        }
+        .kv .v {
+            color: #e6e6e6;
+            font-weight: 600;
+        }
+        .status-chip {
+            display: inline-block;
+            padding: 4px 10px;
+            border-radius: 999px;
+            font-size: 12px;
+            font-weight: 700;
+        }
+        .chip-admin { background: #10b981; color: #072b22; }
+        .chip-restricted { background: #f59e0b; color: #2a1c05; }
+
+        .footer {
+            margin-top: 12px;
+            font-size: 11px;
+            color: #9aa7bd;
+            text-align: right;
+        }
+
+        /* Copy block */
+        .copywrap {
+            margin-top: 10px;
+            background: #0f121a;
+            border: 1px dashed #2a3143;
+            border-radius: 12px;
+            padding: 10px;
+            font-family: Consolas, Menlo, monospace;
+            font-size: 12px;
+            color: #cfd7ea;
+            white-space: pre-wrap;
+            user-select: text;
+        }
+
+        /* Collapsible details (kept minimal for template consistency) */
+        details {
+            background: #121621;
+            border: 1px solid #1f2330;
+            border-radius: 12px;
+            padding: 10px 12px;
+        }
+        summary {
+            cursor: pointer;
+            font-weight: 600;
+            color: #9ec0ff;
+            outline: none;
+        }
+    </style>
+    <script language="VBScript">
+        Option Explicit
+
+        Dim gCaption, gVersion, gBuild, gUser, gDomain, gIsAdmin
+
+        Sub Window_OnLoad()
+            CenterWindow 640, 420
+            RefreshInfo
+        End Sub
+
+        Sub CenterWindow(w, h)
+            Dim sx, sy
+            sx = (screen.availWidth - w) \ 2
+            sy = (screen.availHeight - h) \ 2
+            window.resizeTo w, h
+            window.moveTo sx, sy
+        End Sub
+
+        Sub RefreshInfo()
+            On Error Resume Next
+
+            ' Username / Domain
+            Dim net
+            Set net = CreateObject("WScript.Network")
+            gUser = net.UserName
+            gDomain = net.UserDomain
+
+            ' OS Info (WMI)
+            Dim svc, col, os
+            Set svc = GetObject("winmgmts:\\.\root\cimv2")
+            Set col = svc.ExecQuery("SELECT Caption, Version, BuildNumber FROM Win32_OperatingSystem")
+            For Each os In col
+                gCaption = os.Caption
+                gVersion = os.Version
+                gBuild   = os.BuildNumber
+            Next
+
+            ' Admin check
+            gIsAdmin = IsUserAdmin()
+
+            ' Populate UI
+            document.getElementById("osName").innerText     = Nz(gCaption, "Unknown")
+            document.getElementById("osVersion").innerText  = Nz(gVersion, "Unknown")
+            document.getElementById("osBuild").innerText    = Nz(gBuild, "Unknown")
+            document.getElementById("userName").innerText   = Nz(gDomain & "\" & gUser, "Unknown")
+
+            Dim chip
+            Set chip = document.getElementById("privChip")
+            If gIsAdmin Then
+                chip.innerText = "Privileged (Administrator)"
+                chip.className = "status-chip chip-admin"
+            Else
+                chip.innerText = "Restricted (Standard user)"
+                chip.className = "status-chip chip-restricted"
+            End If
+
+            ' Copyable summary
+            Dim summary
+            summary = "OS: " & Nz(gCaption, "Unknown") & vbCrLf & _
+                      "Version: " & Nz(gVersion, "Unknown") & vbCrLf & _
+                      "Build: " & Nz(gBuild, "Unknown") & vbCrLf & _
+                      "User: " & Nz(gDomain & "\" & gUser, "Unknown") & vbCrLf & _
+                      "Privilege: " & IIf(gIsAdmin, "Privileged (Administrator)", "Restricted (Standard user)")
+            document.getElementById("copyBlock").innerText = summary
+
+            On Error GoTo 0
+        End Sub
+
+        Function Nz(v, d)
+            If IsNull(v) Or v = "" Then
+                Nz = d
+            Else
+                Nz = v
+            End If
+        End Function
+
+        Function IIf(expr, truePart, falsePart)
+            If expr Then
+                IIf = truePart
+            Else
+                IIf = falsePart
+            End If
+        End Function
+
+        Function IsUserAdmin()
+            On Error Resume Next
+            Dim net, domainName, userName
+            Set net = CreateObject("WScript.Network")
+            domainName = net.UserDomain
+            userName = net.UserName
+
+            Dim grp, usr, pathUser
+            Set grp = GetObject("WinNT://./Administrators,group")
+
+            ' Try DOMAIN\User
+            pathUser = "WinNT://" & domainName & "/" & userName & ",user"
+            Set usr = Nothing
+            Set usr = GetObject(pathUser)
+            If Err.Number <> 0 Then
+                Err.Clear
+                ' Fallback to local machine user path
+                pathUser = "WinNT://./" & userName & ",user"
+                Set usr = GetObject(pathUser)
+            End If
+
+            If Err.Number <> 0 Then
+                ' As a last-resort heuristic, try NET SESSION (requires admin; returns errorlevel when not admin)
+                Err.Clear
+                Dim sh, rc
+                Set sh = CreateObject("WScript.Shell")
+                rc = sh.Run("cmd /c net session >nul 2>&1", 0, True)
+                IsUserAdmin = (rc = 0)
+            Else
+                IsUserAdmin = grp.IsMember(usr.ADsPath)
+            End If
+            On Error GoTo 0
+        End Function
+
+        Sub BtnClose()
+            window.close
+        End Sub
+
+        Sub BtnRefresh()
+            RefreshInfo
+        End Sub
+
+        Sub BtnCopy()
+            On Error Resume Next
+            Dim rng
+            Set rng = document.body.createTextRange()
+            rng.moveToElementText document.getElementById("copyBlock")
+            rng.select
+            rng.execCommand "Copy"
+            On Error GoTo 0
+        End Sub
+    </script>
+</head>
+<body>
+    <div class="header">
+        <div class="title">🧰  Cyber‑Tek(IT) — System Information</div>
+        <div class="actions">
+            <button class="btn" onclick="VBScript:BtnRefresh">Refresh</button>
+            <button class="btn" onclick="VBScript:BtnCopy">Copy Details</button>
+            <button class="btn btn-danger" onclick="VBScript:BtnClose">Close</button>
+        </div>
+    </div>
+
+    <div class="container">
+        <div class="grid">
+            <div class="card">
+                <h2>Operating System & User</h2>
+                <div class="kv">
+                    <div class="k">OS</div><div class="v" id="osName">…</div>
+                    <div class="k">Version</div><div class="v" id="osVersion">…</div>
+                    <div class="k">Build</div><div class="v" id="osBuild">…</div>
+                    <div class="k">Logged-in User</div><div class="v" id="userName">…</div>
+                    <div class="k">Privilege</div><div class="v"><span id="privChip" class="status-chip">…</span></div>
+                </div>
+
+                <div class="copywrap" id="copyBlock">…</div>
+                <div class="footer">© Cyber‑TeK(IT) • HTA template with blue header and Close button</div>
+            </div>
+
+            <details class="card">
+                <summary>Details & Notes</summary>
+                <div style="margin-top:10px; font-size:12px; color:#c1cbe2;">
+                    • OS values are sourced from WMI (Win32_OperatingSystem).<br/>
+                    • Privilege status checks local Administrators group membership and falls back to a command check if needed.<br/>
+                    • Use the <b>Refresh</b> button after privilege or account changes.
+                </div>
+            </details>
+        </div>
+    </div>
+</body>
+</html>
