@@ -1,15 +1,22 @@
 function Disable-OutlookTroubleshootingLogging {
 <#
 .SYNOPSIS
-2025-11-03 | Project: ToolBox | Func#: TBD
-Category: Outlook | Sub: Logging | Version: 0.3
-Purpose: Disable Outlook “troubleshooting logging” for the current user with pre/post confirmation popups.
+Disable Outlook “troubleshooting logging” for the current user with pre/post popups.
+.VERSION
+0.3 (PowerShell 5.1-compatible)
 #>
     [CmdletBinding(SupportsShouldProcess = $true, ConfirmImpact = 'Medium')]
     param(
+        # Common Office/Outlook registry versions (adjust if needed)
         [string[]]$OfficeVersions = @('16.0','15.0','14.0','12.0'),
+
+        # Also write the user policy key so the checkbox is disabled in the UI
         [switch]$AlsoDisablePolicy,
+
+        # Also stop default ETL logging via policy
         [switch]$AlsoDisableEtlDefault,
+
+        # Remove the current user’s temp “Outlook Logging” folder (if present)
         [switch]$RemoveExistingLogs
     )
 
@@ -17,19 +24,23 @@ Purpose: Disable Outlook “troubleshooting logging” for the current user with
         $results = @()
         $notes = @()
         $userApproved = $false
+
+        # Detect if Outlook is running (helpful for the message)
         $outlookProc = Get-Process -Name OUTLOOK -ErrorAction SilentlyContinue
         $outlookRunning = [bool]$outlookProc
-        if ($outlookRunning) { $notes += 'Outlook is running; changes take effect after Outlook restarts.' }
+        if ($outlookRunning) { $notes += 'Outlook is running; restart after changes.' }
 
-        # --- Pre-execution confirmation popup ---
+        # ---- Pre-execution confirmation (GUI with Yes/No; console fallback) ----
         if (-not $WhatIfPreference) {
             try {
                 Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
                 $msg = "This will turn OFF Outlook's 'Troubleshooting Logging' for your account." +
-                       "`r`n`r`nWhat this does:" +
-                       "`r`n • Stops extra diagnostic logs from being created." +
-                       "`r`n • (Optional) Disables policy-based logging and default ETL logging." +
-                       (if ($outlookRunning) { "`r`n`r`nOutlook is currently open—please restart it after this change." } else { "" }) +
+                       "`r`n`r`nIt will:" +
+                       "`r`n • Stop extra diagnostic logs from being created." +
+                       (if ($AlsoDisablePolicy)   { "`r`n • Disable the logging option via policy." } else { "" }) +
+                       (if ($AlsoDisableEtlDefault) { "`r`n • Stop default ETL logging via policy." } else { "" }) +
+                       (if ($RemoveExistingLogs)  { "`r`n • Remove existing 'Outlook Logging' temp files." } else { "" }) +
+                       (if ($outlookRunning)      { "`r`n`r`nOutlook is currently open—please restart it after this change." } else { "" }) +
                        "`r`n`r`nDo you want to continue?"
                 $result = [System.Windows.Forms.MessageBox]::Show(
                     $msg,
@@ -39,31 +50,27 @@ Purpose: Disable Outlook “troubleshooting logging” for the current user with
                 )
                 if ($result -eq [System.Windows.Forms.DialogResult]::Yes) { $userApproved = $true }
             } catch {
-                # Fallback to console prompt if GUI not available
+                # Non-interactive/Server Core fallback
                 $answer = Read-Host "Disable Outlook Troubleshooting Logging now? (Y/N)"
                 if ($answer -match '^(y|yes)$') { $userApproved = $true }
             }
         } else {
-            # -WhatIf: skip popup; simulate only
-            $notes += 'WhatIf mode: no popup shown; no changes will be written.'
-            $userApproved = $false
+            $notes += 'WhatIf mode: simulation only; no popups, no changes.'
         }
 
         if (-not $userApproved -and -not $WhatIfPreference) {
-            # User cancelled
-            $obj = [pscustomobject]@{
+            [pscustomobject]@{
                 CancelledByUser    = $true
                 OutlookRunning     = $outlookRunning
                 VersionsProcessed  = $null
                 Details            = @()
-                Notes              = 'Operation cancelled by user before making changes.'
+                Notes              = 'Operation cancelled before making changes.'
                 NextSteps          = 'No action taken.'
             }
-            # Emit object and stop the function
-            $obj
             return
         }
 
+        # --- Helpers (5.1-safe) ---
         function Set-Dword {
             param(
                 [Parameter(Mandatory)] [string]$Path,
@@ -103,7 +110,7 @@ Purpose: Disable Outlook “troubleshooting logging” for the current user with
             $beforePolicy = Get-CurrentValue -Path $policyPath -Name 'EnableLogging'
             $beforeEtl    = Get-CurrentValue -Path $etlPath    -Name 'DisableDefaultLogging'
 
-            # Turn OFF the user preference: EnableLogging = 0
+            # Disable the user preference toggle
             Set-Dword -Path $prefPath -Name 'EnableLogging' -Value 0
             $afterPref = 0
             $changed = $changed -or ($beforePref -ne $afterPref)
@@ -121,26 +128,26 @@ Purpose: Disable Outlook “troubleshooting logging” for the current user with
             }
 
             $results += [pscustomobject]@{
-                OfficeVersion                         = $ver
-                Preference_EnableLogging_Before       = $beforePref
-                Preference_EnableLogging_After        = 0
-                Policy_EnableLogging_Before           = $beforePolicy
-                Policy_EnableLogging_After            = $(if ($AlsoDisablePolicy) { 0 } else { $beforePolicy })
-                Policy_DisableDefaultLogging_Before   = $beforeEtl
-                Policy_DisableDefaultLogging_After    = $(if ($AlsoDisableEtlDefault) { 1 } else { $beforeEtl })
-                Changed                               = $changed
+                OfficeVersion                       = $ver
+                Preference_EnableLogging_Before     = $beforePref
+                Preference_EnableLogging_After      = 0
+                Policy_EnableLogging_Before         = $beforePolicy
+                Policy_EnableLogging_After          = $(if ($AlsoDisablePolicy) { 0 } else { $beforePolicy })
+                Policy_DisableDefaultLogging_Before = $beforeEtl
+                Policy_DisableDefaultLogging_After  = $(if ($AlsoDisableEtlDefault) { 1 } else { $beforeEtl })
+                Changed                             = $changed
             }
         }
 
         if ($RemoveExistingLogs) {
-            $logDirs = @( Join-Path -Path $env:TEMP -ChildPath 'Outlook Logging' )
-            foreach ($d in $logDirs) {
-                if (Test-Path -LiteralPath $d) {
-                    if ($PSCmdlet.ShouldProcess($d, "Remove log folder")) {
-                        try {
-                            Remove-Item -LiteralPath $d -Recurse -Force -ErrorAction Stop
-                            $notes += "Deleted: $d"
-                        } catch { $notes += "Could not delete: $d ($($_.Exception.Message))" }
+            $logDir = Join-Path -Path $env:TEMP -ChildPath 'Outlook Logging'
+            if (Test-Path -LiteralPath $logDir) {
+                if ($PSCmdlet.ShouldProcess($logDir, "Remove log folder")) {
+                    try {
+                        Remove-Item -LiteralPath $logDir -Recurse -Force -ErrorAction Stop
+                        $notes += "Deleted: $logDir"
+                    } catch {
+                        $notes += "Could not delete: $logDir ($($_.Exception.Message))"
                     }
                 }
             }
@@ -156,7 +163,7 @@ Purpose: Disable Outlook “troubleshooting logging” for the current user with
             NextSteps          = 'Restart Outlook to apply changes.'
         }
 
-        # Show post-success confirmation only when not -WhatIf and not cancelled
+        # Post-success popup (skip in -WhatIf)
         if (-not $WhatIfPreference -and $results.Count -gt 0) {
             try {
                 Add-Type -AssemblyName System.Windows.Forms -ErrorAction Stop
@@ -176,4 +183,5 @@ Purpose: Disable Outlook “troubleshooting logging” for the current user with
         $obj
     }
 }
+
 Disable-OutlookTroubleshootingLogging
