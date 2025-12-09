@@ -2,5 +2,5 @@
 #### SCRIPTS / FUNCTIONS / CMDLETS / EXAMPLES / PUBLICATIONS / NOTES
 
 
-### Invoke-WordCloudFonts.ps1
+### [Invoke-WordCloudFonts.ps1](https://raw.githubusercontent.com/s0nt3k/Scripts/refs/heads/main/PowerShell/Invoke-WordCloudFonts.ps1)
 Creates a Word document that lists every available font, rendering each name in its own font so all of the cloud fonts that have not been downloaded yet get downloaded.
