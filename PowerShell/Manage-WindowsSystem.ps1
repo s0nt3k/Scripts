@@ -65,17 +65,13 @@ function Invoke-WindowsUpdateCheck {
         )
         
         if ($result -eq [System.Windows.Forms.DialogResult]::Yes) {
-            $updateSession = New-Object -ComObject Microsoft.Update.Session
-            $updateSearcher = $updateSession.CreateUpdateSearcher()
-            
-            [System.Windows.Forms.MessageBox]::Show(
-                "Searching for updates, please wait...",
-                "Checking Updates",
-                [System.Windows.Forms.MessageBoxButtons]::OK,
-                [System.Windows.Forms.MessageBoxIcon]::Information
-            ) | Out-Null
-            
-            $searchResult = $updateSearcher.Search("IsInstalled=0")
+            $updateSession = $null
+            $updateSearcher = $null
+            try {
+                $updateSession = New-Object -ComObject Microsoft.Update.Session
+                $updateSearcher = $updateSession.CreateUpdateSearcher()
+                
+                $searchResult = $updateSearcher.Search("IsInstalled=0")
             
             if ($searchResult.Updates.Count -eq 0) {
                 [System.Windows.Forms.MessageBox]::Show(
@@ -93,6 +89,12 @@ function Invoke-WindowsUpdateCheck {
                     [System.Windows.Forms.MessageBoxButtons]::OK,
                     [System.Windows.Forms.MessageBoxIcon]::Information
                 ) | Out-Null
+                }
+            }
+            finally {
+                # Release COM objects
+                if ($null -ne $updateSearcher) { [System.Runtime.Interopservices.Marshal]::ReleaseComObject($updateSearcher) | Out-Null }
+                if ($null -ne $updateSession) { [System.Runtime.Interopservices.Marshal]::ReleaseComObject($updateSession) | Out-Null }
             }
         }
     }
@@ -210,8 +212,12 @@ function Invoke-NetworkDiagnostics {
             
             $config = $ipConfig | Where-Object { $_.InterfaceAlias -eq $adapter.Name }
             if ($config) {
-                $info += "IPv4: $($config.IPv4Address.IPAddress)`r`n"
-                $info += "Gateway: $($config.IPv4DefaultGateway.NextHop)`r`n"
+                if ($config.IPv4Address -and $config.IPv4Address.Count -gt 0) {
+                    $info += "IPv4: $($config.IPv4Address[0].IPAddress)`r`n"
+                }
+                if ($config.IPv4DefaultGateway -and $config.IPv4DefaultGateway.Count -gt 0) {
+                    $info += "Gateway: $($config.IPv4DefaultGateway[0].NextHop)`r`n"
+                }
             }
             $info += "`r`n"
         }
@@ -326,7 +332,13 @@ function Get-EventLogErrors {
         foreach ($event in $events) {
             $info += "Time: $($event.TimeGenerated)`r`n"
             $info += "Source: $($event.Source)`r`n"
-            $info += "Message: $($event.Message.Substring(0, [Math]::Min(100, $event.Message.Length)))...`r`n`r`n"
+            if ($event.Message) {
+                $messagePreview = $event.Message.Substring(0, [Math]::Min(100, $event.Message.Length))
+                $info += "Message: $messagePreview...`r`n`r`n"
+            }
+            else {
+                $info += "Message: (No message available)`r`n`r`n"
+            }
         }
         
         [System.Windows.Forms.MessageBox]::Show(
