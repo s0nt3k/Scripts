@@ -72,29 +72,29 @@ function Invoke-WindowsUpdateCheck {
                 $updateSearcher = $updateSession.CreateUpdateSearcher()
                 
                 $searchResult = $updateSearcher.Search("IsInstalled=0")
-            
-            if ($searchResult.Updates.Count -eq 0) {
-                [System.Windows.Forms.MessageBox]::Show(
-                    "No updates are available.",
-                    "Windows Update",
-                    [System.Windows.Forms.MessageBoxButtons]::OK,
-                    [System.Windows.Forms.MessageBoxIcon]::Information
-                ) | Out-Null
-            }
-            else {
-                [System.Windows.Forms.MessageBox]::Show(
-                    "$($searchResult.Updates.Count) update(s) available." + [Environment]::NewLine +
-                    "Please use Windows Update in Settings to install them.",
-                    "Windows Update",
-                    [System.Windows.Forms.MessageBoxButtons]::OK,
-                    [System.Windows.Forms.MessageBoxIcon]::Information
-                ) | Out-Null
+                
+                if ($searchResult.Updates.Count -eq 0) {
+                    [System.Windows.Forms.MessageBox]::Show(
+                        "No updates are available.",
+                        "Windows Update",
+                        [System.Windows.Forms.MessageBoxButtons]::OK,
+                        [System.Windows.Forms.MessageBoxIcon]::Information
+                    ) | Out-Null
+                }
+                else {
+                    [System.Windows.Forms.MessageBox]::Show(
+                        "$($searchResult.Updates.Count) update(s) available." + [Environment]::NewLine +
+                        "Please use Windows Update in Settings to install them.",
+                        "Windows Update",
+                        [System.Windows.Forms.MessageBoxButtons]::OK,
+                        [System.Windows.Forms.MessageBoxIcon]::Information
+                    ) | Out-Null
                 }
             }
             finally {
                 # Release COM objects
-                if ($null -ne $updateSearcher) { [System.Runtime.Interopservices.Marshal]::ReleaseComObject($updateSearcher) | Out-Null }
-                if ($null -ne $updateSession) { [System.Runtime.Interopservices.Marshal]::ReleaseComObject($updateSession) | Out-Null }
+                if ($null -ne $updateSearcher) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($updateSearcher) | Out-Null }
+                if ($null -ne $updateSession) { [System.Runtime.InteropServices.Marshal]::ReleaseComObject($updateSession) | Out-Null }
             }
         }
     }
