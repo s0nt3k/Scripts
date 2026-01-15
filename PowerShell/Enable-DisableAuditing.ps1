@@ -15,6 +15,9 @@ Each log line records: timestamp, hostname, windows user, technician name, and a
 .NOTES
 - Requires Administrator for changing settings.
 - PowerShell 5.1 compatible.
+
+- Enginer: Sonny M. Gibson (s0nt3k)
+
 #>
 
 Set-StrictMode -Version Latest
