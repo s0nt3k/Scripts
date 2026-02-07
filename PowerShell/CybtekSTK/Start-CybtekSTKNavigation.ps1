@@ -1,8 +1,16 @@
-# --- Settings File Path (resolved at script scope for $PSScriptRoot access) -
+# --- Script Version (MAJOR.MINOR.PATCH) -------------------------------------
+$script:Version = "1.0.0"
+
+# --- Settings & Changelog File Paths (resolved at script scope) -------------
 $script:SettingsFilePath = if ($PSScriptRoot) {
     Join-Path $PSScriptRoot "CybtekSTK.settings.json"
 } else {
     Join-Path $PWD "CybtekSTK.settings.json"
+}
+$script:ChangelogFilePath = if ($PSScriptRoot) {
+    Join-Path $PSScriptRoot "CHANGELOG.txt"
+} else {
+    Join-Path $PWD "CHANGELOG.txt"
 }
 
 function Start-CybtekSTKNavigation {
