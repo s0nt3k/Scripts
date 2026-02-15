@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==========================================
-# Ubuntu / WSL Graphical Setup Menu
+# WSL Graphical Setup Menu
 # ==========================================
 
 set -e
