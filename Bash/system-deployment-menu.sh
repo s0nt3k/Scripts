@@ -117,10 +117,11 @@ install_nextcloud() {
     systemctl start apache2
     systemctl start mariadb
 
-    cd /tmp
+    pushd /tmp > /dev/null
     wget https://download.nextcloud.com/server/releases/latest.tar.bz2
     tar -xjf latest.tar.bz2 -C /var/www/html/
     chown -R www-data:www-data /var/www/html/nextcloud
+    popd > /dev/null
 
     whiptail --title "Completed" \
     --msgbox "NextCloud Server Installed\n\nAccess via: http://$(hostname -I | awk '{print $1}')/nextcloud" 12 70
@@ -141,6 +142,8 @@ install_pihole() {
     local PIHOLE_PASSWORD=$(openssl rand -base64 12)
 
     cat > "$BASE_DIR/docker-compose.yaml" <<EOF
+# WARNING: This file contains sensitive credentials
+# Protect this file: chmod 600 docker-compose.yaml
 version: "3"
 
 services:
@@ -173,6 +176,9 @@ EOF
     cd "$BASE_DIR"
     docker compose up -d
 
+    # Protect the compose file containing password
+    chmod 600 "$BASE_DIR/docker-compose.yaml"
+
     whiptail --title "Completed" \
     --msgbox "Pi-Hole + Unbound Installed\n\nLocation: $BASE_DIR\nAccess via: http://$(hostname -I | awk '{print $1}')\n\nWeb Password: $PIHOLE_PASSWORD\n\nSave this password!" 15 70
 }
@@ -188,6 +194,8 @@ install_openproject() {
     local SECRET_KEY=$(openssl rand -hex 32)
 
     cat > "$BASE_DIR/docker-compose.yaml" <<EOF
+# WARNING: This file contains sensitive credentials
+# Protect this file: chmod 600 docker-compose.yaml
 version: "3"
 
 services:
@@ -208,6 +216,9 @@ EOF
 
     cd "$BASE_DIR"
     docker compose up -d
+
+    # Protect the compose file containing secret key
+    chmod 600 "$BASE_DIR/docker-compose.yaml"
 
     whiptail --title "Completed" \
     --msgbox "OpenProject Installed\n\nLocation: $BASE_DIR\nAccess via: http://$(hostname -I | awk '{print $1}'):8080" 12 70
@@ -412,11 +423,11 @@ manage_users() {
         2)
             USERNAME=$(whiptail --inputbox "Enter username to delete:" 10 50 3>&1 1>&2 2>&3)
             if [ -n "$USERNAME" ]; then
-                whiptail --title "Confirm Deletion" --yesno "Are you sure you want to delete user: $USERNAME?\n\nThis action cannot be undone!" 12 60
+                whiptail --title "Confirm Deletion" --yesno "Are you sure you want to delete user: $USERNAME?\n\nThis will also remove the user's home directory.\nThis action cannot be undone!" 14 65
                 if [ $? -eq 0 ]; then
                     if id "$USERNAME" >/dev/null 2>&1; then
-                        deluser "$USERNAME"
-                        whiptail --title "Success" --msgbox "User $USERNAME deleted" 8 40
+                        deluser --remove-home "$USERNAME"
+                        whiptail --title "Success" --msgbox "User $USERNAME and home directory deleted" 8 50
                     else
                         whiptail --title "Error" --msgbox "User $USERNAME does not exist" 8 40
                     fi
