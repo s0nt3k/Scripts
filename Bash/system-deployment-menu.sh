@@ -137,7 +137,10 @@ install_pihole() {
     local BASE_DIR="$HOME/opt/pihole"
     mkdir -p "$BASE_DIR"
 
-    cat > "$BASE_DIR/docker-compose.yaml" <<'EOF'
+    # Generate random password for Pi-Hole web interface
+    local PIHOLE_PASSWORD=$(openssl rand -base64 12)
+
+    cat > "$BASE_DIR/docker-compose.yaml" <<EOF
 version: "3"
 
 services:
@@ -150,7 +153,7 @@ services:
       - "80:80/tcp"
     environment:
       TZ: 'America/New_York'
-      WEBPASSWORD: 'changeme'
+      WEBPASSWORD: '$PIHOLE_PASSWORD'
     volumes:
       - './etc-pihole:/etc/pihole'
       - './etc-dnsmasq.d:/etc/dnsmasq.d'
@@ -171,7 +174,7 @@ EOF
     docker compose up -d
 
     whiptail --title "Completed" \
-    --msgbox "Pi-Hole + Unbound Installed\n\nLocation: $BASE_DIR\nAccess via: http://$(hostname -I | awk '{print $1}')" 12 70
+    --msgbox "Pi-Hole + Unbound Installed\n\nLocation: $BASE_DIR\nAccess via: http://$(hostname -I | awk '{print $1}')\n\nWeb Password: $PIHOLE_PASSWORD\n\nSave this password!" 15 70
 }
 
 install_openproject() {
@@ -181,7 +184,10 @@ install_openproject() {
     local BASE_DIR="$HOME/opt/openproject"
     mkdir -p "$BASE_DIR"
 
-    cat > "$BASE_DIR/docker-compose.yaml" <<'EOF'
+    # Generate random secret key for OpenProject
+    local SECRET_KEY=$(openssl rand -hex 32)
+
+    cat > "$BASE_DIR/docker-compose.yaml" <<EOF
 version: "3"
 
 services:
@@ -191,7 +197,7 @@ services:
     ports:
       - "8080:80"
     environment:
-      OPENPROJECT_SECRET_KEY_BASE: "changeme"
+      OPENPROJECT_SECRET_KEY_BASE: "$SECRET_KEY"
       OPENPROJECT_HOST__NAME: "localhost:8080"
       OPENPROJECT_HTTPS: "false"
     volumes:
@@ -211,17 +217,25 @@ install_rustdesk() {
     whiptail --title "RustDesk Install" \
     --msgbox "Installing RustDesk Remote Desktop" 10 50
 
+    # Prompt for relay server domain
+    local RELAY_SERVER=$(whiptail --inputbox "Enter your relay server domain name or IP address:" 10 60 "$(hostname -I | awk '{print $1}')" 3>&1 1>&2 2>&3)
+
+    if [ -z "$RELAY_SERVER" ]; then
+        whiptail --title "Error" --msgbox "Domain/IP required. Installation cancelled." 8 50
+        return
+    fi
+
     local BASE_DIR="$HOME/opt/rustdesk"
     mkdir -p "$BASE_DIR"
 
-    cat > "$BASE_DIR/docker-compose.yaml" <<'EOF'
+    cat > "$BASE_DIR/docker-compose.yaml" <<EOF
 version: "3"
 
 services:
   hbbs:
     container_name: rustdesk-hbbs
     image: rustdesk/rustdesk-server:latest
-    command: hbbs -r rustdesk.example.com:21117
+    command: hbbs -r $RELAY_SERVER:21117
     volumes:
       - './data:/root'
     ports:
@@ -247,7 +261,7 @@ EOF
     docker compose up -d
 
     whiptail --title "Completed" \
-    --msgbox "RustDesk Remote Desktop Installed\n\nLocation: $BASE_DIR" 10 70
+    --msgbox "RustDesk Remote Desktop Installed\n\nLocation: $BASE_DIR\nRelay Server: $RELAY_SERVER" 12 70
 }
 
 install_nginx_proxy() {
@@ -278,7 +292,7 @@ EOF
     docker compose up -d
 
     whiptail --title "Completed" \
-    --msgbox "Nginx Proxy Manager Installed\n\nLocation: $BASE_DIR\nAdmin UI: http://$(hostname -I | awk '{print $1}'):81\n\nDefault: admin@example.com / changeme" 14 70
+    --msgbox "Nginx Proxy Manager Installed\n\nLocation: $BASE_DIR\nAdmin UI: http://$(hostname -I | awk '{print $1}'):81\n\nDefault Login:\nEmail: admin@example.com\nPassword: changeme\n\n⚠️  IMPORTANT: Change these credentials immediately after first login!" 16 75
 }
 
 install_nodebb() {
@@ -398,8 +412,15 @@ manage_users() {
         2)
             USERNAME=$(whiptail --inputbox "Enter username to delete:" 10 50 3>&1 1>&2 2>&3)
             if [ -n "$USERNAME" ]; then
-                deluser "$USERNAME"
-                whiptail --title "Success" --msgbox "User $USERNAME deleted" 8 40
+                whiptail --title "Confirm Deletion" --yesno "Are you sure you want to delete user: $USERNAME?\n\nThis action cannot be undone!" 12 60
+                if [ $? -eq 0 ]; then
+                    if id "$USERNAME" >/dev/null 2>&1; then
+                        deluser "$USERNAME"
+                        whiptail --title "Success" --msgbox "User $USERNAME deleted" 8 40
+                    else
+                        whiptail --title "Error" --msgbox "User $USERNAME does not exist" 8 40
+                    fi
+                fi
             fi
             ;;
         3)
