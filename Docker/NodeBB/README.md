@@ -8,3 +8,23 @@ participate. With its flexible plugin and theme system, administrators can custo
 their brand and business needs. For small businesses, real estate offices, and professional service providers, NodeBB offers a
 reliable way to host client forums, support communities, or internal discussion boards while maintaining strong security controls, 
 data ownership, and compliance with privacy best practices.
+
+
+## ✅ Install NodeBB using Docker Compose
+The following assumes that you already have Docker and Docker Compose installed and Docker is already up and running.
+
+You will have:
+
+ - `docker-compose.yml` → Main configuration
+ - `.env` → Stores passwords, domain, ports, settings (private)
+
+Docker Compose automatically reads `.env` when it’s in the same folder.
+
+## 📁 Step 1: Create a Folder for NodeBB 
+The following Cmdlet creates a child directory named NodeBB inside the root directory `/opt`. \
+The `/opt` root directory is designed to hold self-contained software packages.
+```
+mkdir -p /opt/nodebb
+cd /opt/nodebb
+```
+
