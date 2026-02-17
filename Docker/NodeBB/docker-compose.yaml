@@ -1,0 +1,39 @@
+version: "3.8"
+
+services:
+
+  mongo:
+    image: mongo:6
+    container_name: nodebb-mongo
+    restart: unless-stopped
+    environment:
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_PASSWORD}
+      TZ: ${TZ}
+    volumes:
+      - ./mongo_data:/data/db
+
+  nodebb:
+    image: nodebb/docker:latest
+    container_name: nodebb-app
+    restart: unless-stopped
+    depends_on:
+      - mongo
+    ports:
+      - "${NODEBB_PORT}:4567"
+    environment:
+      NODEBB_URL: ${NODEBB_PROTOCOL}://${NODEBB_DOMAIN}
+      NODEBB_PORT: 4567
+      NODEBB_DB: mongo
+      NODEBB_DB_HOST: mongo
+      NODEBB_DB_PORT: 27017
+      NODEBB_DB_NAME: ${MONGO_DB}
+      NODEBB_DB_USER: ${MONGO_USER}
+      NODEBB_DB_PASSWORD: ${MONGO_PASSWORD}
+      TZ: ${TZ}
+    volumes:
+      - ./nodebb_data:/usr/src/app
+
+volumes:
+  mongo_data:
+  nodebb_data:
