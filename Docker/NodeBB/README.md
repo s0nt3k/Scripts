@@ -1,6 +1,8 @@
-# NodeBB
 
-NodeBB is a modern, open-source discussion forum platform designed to help organizations, businesses, and online communities 
+<img src="https://github.com/s0nt3k/Scripts/blob/370e5e5df4cd30e82166c0b7cdbe0355b1131a9d/Docker/Assets/Images/nodebb-logo.png" alt="NodeBB Logo" style="display:block; width:300px; margin:0 auto;">
+
+---
+**NodeBB** is a modern, open-source discussion forum platform designed to help organizations, businesses, and online communities 
 communicate effectively in a secure and easy-to-manage environment. Built on Node.js, it delivers fast performance and real-time 
 interactions, allowing users to see new posts, replies, and notifications instantly without refreshing the page. NodeBB supports 
 single sign-on, social media logins, and integration with existing websites, making it convenient for members to access and 
@@ -27,4 +29,3 @@ The `/opt` root directory is designed to hold self-contained software packages.
 mkdir -p /opt/nodebb
 cd /opt/nodebb
 ```
-
