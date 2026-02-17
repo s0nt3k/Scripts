@@ -1,23 +1,28 @@
 export default {
   async fetch(request, env, ctx) {
-    // 1. Forward the request to your tunnel origin
     const response = await fetch(request);
 
-    // 2. Check if the response is a 404
-    // Cloudflare Tunnels often return 404 when the connector is offline
-    if (response.status === 404) {
-      return new Response("Tunnel Interrupted: Origin Unreachable", {
-        status: 503,
-        statusText: "Service Unavailable",
-        headers: {
-          ...response.headers,
-          "Retry-After": "300", // Suggests the client retries in 5 minutes
-          "Content-Type": "text/plain"
-        }
-      });
+    // Added 530 to the list to catch Cloudflare Tunnel 'Origin DNS' errors
+    const errorCodes = [404, 502, 503, 504, 530];
+
+    if (errorCodes.includes(response.status)) {
+      // Check if the response actually came from Radicale
+      const isRadicale = response.headers.has("WWW-Authenticate") || 
+                         response.headers.get("server")?.toLowerCase().includes("radicale");
+
+      if (!isRadicale) {
+        return new Response("Radicale Server Unreachable: Tunnel Connection Interrupted", {
+          status: 503,
+          statusText: "Service Unavailable",
+          headers: {
+            "Content-Type": "text/plain",
+            "Retry-After": "300",
+            "Cache-Control": "no-store"
+          }
+        });
+      }
     }
 
-    // 3. If it's any other status (200, 401, etc.), return it as is
     return response;
   }
 };
