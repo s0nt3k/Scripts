@@ -1,0 +1,35 @@
+version: "3.8"
+
+services:
+  nodebb:
+    image: ghcr.io/nodebb/nodebb:latest
+    container_name: nodebb
+    depends_on:
+      - db
+    ports:
+      - "4567:4567"
+    environment:
+      database: postgres
+      postgres__host: db
+      postgres__port: 5432
+      postgres__database: nodebb
+      postgres__username: nodebb
+      postgres__password: nodebbpass
+    volumes:
+      - nodebb-data:/var/lib/nodebb
+    restart: unless-stopped
+
+  db:
+    image: postgres:15
+    container_name: nodebb-postgres
+    environment:
+      POSTGRES_DB: nodebb
+      POSTGRES_USER: nodebb
+      POSTGRES_PASSWORD: nodebbpass
+    volumes:
+      - dbdata:/var/lib/postgresql/data
+    restart: unless-stopped
+
+volumes:
+  nodebb-data:
+  dbdata:
