@@ -1,0 +1,3024 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark" data-bs-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SupportTrack Pro</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.7/css/dataTables.bootstrap5.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/@fortawesome/fontawesome-free@6.5.0/css/all.min.css" rel="stylesheet">
+  <link href="https://cdn.jsdelivr.net/npm/animate.css@4.1.1/animate.min.css" rel="stylesheet">
+
+  <style>
+    :root {
+      --accent:#6366f1; --accent-light:#818cf8;
+      --clr-success:#10b981; --clr-warning:#f59e0b;
+      --clr-danger:#ef4444; --clr-info:#3b82f6;
+    }
+    [data-theme="dark"] {
+      --bg-primary:#0f172a; --bg-secondary:#1e293b; --bg-card:#1e293b;
+      --bg-hover:#273450; --text-primary:#e2e8f0; --text-secondary:#94a3b8;
+      --border:#334155; --nav-bg:rgba(15,23,42,.97);
+    }
+    [data-theme="light"] {
+      --bg-primary:#f1f5f9; --bg-secondary:#e2e8f0; --bg-card:#ffffff;
+      --bg-hover:#f8fafc; --text-primary:#1e293b; --text-secondary:#64748b;
+      --border:#e2e8f0; --nav-bg:rgba(255,255,255,.97);
+    }
+    * { transition:background-color .25s,color .2s,border-color .2s; }
+    body { background:var(--bg-primary); color:var(--text-primary); font-family:'Segoe UI',system-ui,sans-serif; min-height:100vh; }
+
+    /* Hero bar */
+    .hero-bar { height:4px; background:linear-gradient(90deg,#6366f1,#8b5cf6,#ec4899,#f59e0b); }
+
+    /* Navbar */
+    .navbar-custom { background:var(--nav-bg); backdrop-filter:blur(20px); border-bottom:1px solid var(--border); padding:.75rem 1.5rem; }
+    .brand-text { font-size:1.35rem; font-weight:700; background:linear-gradient(135deg,var(--accent),var(--accent-light)); -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent; }
+    .brand-icon { width:38px; height:38px; border-radius:10px; background:linear-gradient(135deg,#6366f1,#8b5cf6); display:flex; align-items:center; justify-content:center; }
+
+    /* Stat cards */
+    .stat-card { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:1.25rem 1.5rem; position:relative; overflow:hidden; }
+    .stat-card::before { content:''; position:absolute; top:0; left:0; width:4px; height:100%; }
+    .stat-card.c-accent::before  { background:var(--accent); }
+    .stat-card.c-success::before { background:var(--clr-success); }
+    .stat-card.c-warning::before { background:var(--clr-warning); }
+    .stat-card.c-danger::before  { background:var(--clr-danger); }
+    .stat-icon { width:48px; height:48px; border-radius:12px; display:flex; align-items:center; justify-content:center; font-size:1.2rem; }
+    .stat-value { font-size:2rem; font-weight:700; line-height:1; }
+    .stat-label { font-size:.75rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.06em; font-weight:600; }
+
+    /* Content card */
+    .content-card { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; overflow:hidden; }
+
+    /* Filter tabs */
+    .filter-tabs { display:flex; gap:.5rem; padding:1rem 1.25rem; border-bottom:1px solid var(--border); flex-wrap:wrap; }
+    .ftab { padding:.35rem .9rem; border-radius:20px; border:1px solid var(--border); background:transparent; color:var(--text-secondary); font-size:.82rem; font-weight:500; cursor:pointer; transition:all .2s; }
+    .ftab.active { background:var(--accent); border-color:var(--accent); color:#fff; }
+    .ftab:hover:not(.active) { background:var(--bg-secondary); color:var(--text-primary); }
+
+    /* DataTable overrides */
+    table.dataTable { color:var(--text-primary)!important; }
+    table.dataTable thead th { background:var(--bg-secondary)!important; color:var(--text-secondary)!important; border-bottom:1px solid var(--border)!important; font-size:.72rem; text-transform:uppercase; letter-spacing:.06em; font-weight:700; }
+    table.dataTable tbody tr { background:var(--bg-card)!important; border-bottom:1px solid var(--border)!important; cursor:pointer; }
+    table.dataTable tbody tr:hover { background:var(--bg-hover)!important; }
+    table.dataTable td { color:var(--text-primary)!important; vertical-align:middle; padding:.8rem 1rem!important; }
+    .dataTables_wrapper .dataTables_paginate .paginate_button { color:var(--text-secondary)!important; border-radius:8px!important; }
+    .dataTables_wrapper .dataTables_paginate .paginate_button.current { background:var(--accent)!important; border-color:var(--accent)!important; color:#fff!important; }
+    .dataTables_wrapper .dataTables_info,
+    .dataTables_wrapper .dataTables_length label,
+    .dataTables_wrapper .dataTables_filter label { color:var(--text-secondary)!important; }
+    .dataTables_wrapper .dataTables_filter input,
+    .dataTables_wrapper .dataTables_length select { background:var(--bg-secondary)!important; color:var(--text-primary)!important; border:1px solid var(--border)!important; border-radius:8px!important; }
+
+    /* Badges */
+    .bstat { padding:.3em .75em; border-radius:20px; font-size:.73rem; font-weight:600; }
+    .prio-dot { display:inline-block; width:8px; height:8px; border-radius:50%; margin-right:.35rem; }
+
+    /* Company avatar */
+    .co-avatar { width:36px; height:36px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:.8rem; font-weight:700; color:#fff; flex-shrink:0; }
+
+    /* Case detail */
+    .case-header { background:linear-gradient(135deg,var(--bg-secondary),var(--bg-card)); border-bottom:1px solid var(--border); padding:1.5rem; }
+    .case-number-label { font-size:.75rem; font-weight:700; color:var(--accent-light); text-transform:uppercase; letter-spacing:.1em; }
+    .case-title-big { font-size:1.45rem; font-weight:700; }
+    .info-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(180px,1fr)); gap:1rem; }
+    .info-item label { font-size:.7rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:.06em; font-weight:700; display:block; margin-bottom:.2rem; }
+    .info-item .val { font-size:.9rem; color:var(--text-primary); font-weight:500; }
+
+    /* Timer */
+    .timer-card { background:var(--bg-card); border:1px solid var(--border); border-radius:16px; padding:1.5rem; }
+    .timer-display { font-size:3.2rem; font-weight:700; font-family:'Courier New',monospace; color:var(--accent-light); text-align:center; text-shadow:0 0 24px rgba(99,102,241,.35); }
+    .timer-sub { text-align:center; font-size:.82rem; color:var(--text-secondary); }
+    .tbtn { width:50px; height:50px; border-radius:50%; border:none; display:flex; align-items:center; justify-content:center; font-size:1.1rem; cursor:pointer; transition:all .2s; }
+    .tbtn:hover:not(:disabled) { transform:scale(1.12); }
+    .tbtn-start { background:var(--clr-success); color:#fff; }
+    .tbtn-pause { background:var(--clr-warning); color:#fff; }
+    .tbtn-stop  { background:var(--clr-danger); color:#fff; }
+
+    /* Call timeline */
+    .call-item { background:var(--bg-card); border:1px solid var(--border); border-radius:12px; padding:1.2rem; margin-bottom:.85rem; transition:all .2s; }
+    .call-item:hover { border-color:var(--accent); transform:translateX(3px); }
+    .call-num { width:30px; height:30px; border-radius:50%; flex-shrink:0; background:linear-gradient(135deg,var(--accent),var(--accent-light)); display:flex; align-items:center; justify-content:center; color:#fff; font-size:.78rem; font-weight:700; }
+
+    /* Empty state */
+    .empty-state { text-align:center; padding:3rem 1.5rem; color:var(--text-secondary); }
+    .empty-state i { font-size:3.5rem; opacity:.25; display:block; margin-bottom:1rem; }
+
+    /* Forms */
+    .form-control,.form-select { background:var(--bg-secondary)!important; border:1px solid var(--border)!important; color:var(--text-primary)!important; border-radius:8px!important; }
+    .form-control:focus,.form-select:focus { border-color:var(--accent)!important; box-shadow:0 0 0 3px rgba(99,102,241,.18)!important; }
+    .form-label { color:var(--text-secondary); font-size:.83rem; font-weight:600; }
+    .form-control-color { padding:.25rem; }
+
+    /* Modals */
+    .modal-content { background:var(--bg-card)!important; border:1px solid var(--border)!important; border-radius:16px!important; }
+    .modal-header { border-bottom:1px solid var(--border)!important; }
+    .modal-footer { border-top:1px solid var(--border)!important; }
+    .modal-title { color:var(--text-primary)!important; font-weight:700; }
+
+    /* Buttons */
+    .btn-accent { background:linear-gradient(135deg,#6366f1,#8b5cf6); color:#fff; border:none; border-radius:8px; font-weight:600; transition:all .2s; }
+    .btn-accent:hover { background:linear-gradient(135deg,#5558e3,#7c3fde); color:#fff; transform:translateY(-1px); }
+    .btn-ghost { background:var(--bg-secondary); color:var(--text-secondary); border:1px solid var(--border); border-radius:8px; }
+    .btn-ghost:hover { color:var(--text-primary); border-color:var(--accent); }
+    .btn-danger-ghost { background:rgba(239,68,68,.1); color:#ef4444; border:1px solid rgba(239,68,68,.25); border-radius:8px; }
+    .btn-danger-ghost:hover { background:rgba(239,68,68,.2); color:#ef4444; }
+
+    /* Views */
+    .view { display:none; }
+    .view.active { display:block; animation:fadeSlideUp .28s ease; }
+    @keyframes fadeSlideUp { from{opacity:0;transform:translateY(10px);} to{opacity:1;transform:translateY(0);} }
+
+    /* File status */
+    .file-status { font-size:.75rem; display:flex; align-items:center; gap:.4rem; }
+    .status-dot { width:8px; height:8px; border-radius:50%; }
+    .dot-ok { background:var(--clr-success); }
+    .dot-off { background:var(--clr-danger); }
+
+    /* Timer pulse */
+    @keyframes pulse-dot { 0%,100%{opacity:1;} 50%{opacity:.2;} }
+    .timer-pulse { display:inline-block; width:9px; height:9px; background:var(--clr-success); border-radius:50%; margin-right:.4rem; animation:pulse-dot 1s infinite; }
+
+    /* Scrollbar */
+    ::-webkit-scrollbar { width:6px; }
+    ::-webkit-scrollbar-track { background:var(--bg-primary); }
+    ::-webkit-scrollbar-thumb { background:var(--border); border-radius:3px; }
+    ::-webkit-scrollbar-thumb:hover { background:var(--accent); }
+
+    /* Dropdown */
+    .dropdown-menu { background:var(--bg-card)!important; border:1px solid var(--border)!important; }
+    .dropdown-item { color:var(--text-primary)!important; }
+    .dropdown-item:hover { background:var(--bg-secondary)!important; }
+    .dropdown-divider { border-color:var(--border)!important; }
+
+    /* ── Admin screen ── */
+    .admin-tabs { border-bottom:1px solid var(--border); padding:0 1.25rem; display:flex; gap:.25rem; }
+    .admin-tab-btn {
+      padding:.65rem 1.1rem; background:transparent; border:none; border-bottom:2px solid transparent;
+      color:var(--text-secondary); font-size:.85rem; font-weight:600; cursor:pointer;
+      transition:all .2s; white-space:nowrap;
+    }
+    .admin-tab-btn:hover { color:var(--text-primary); }
+    .admin-tab-btn.active { color:var(--accent); border-bottom-color:var(--accent); }
+
+    .admin-list-item {
+      display:flex; align-items:center; gap:.75rem; padding:.85rem 1rem;
+      border-bottom:1px solid var(--border); transition:background .15s;
+    }
+    .admin-list-item:last-child { border-bottom:none; }
+    .admin-list-item:hover { background:var(--bg-hover); }
+
+    .color-swatch { width:28px; height:28px; border-radius:8px; flex-shrink:0; border:2px solid rgba(255,255,255,.1); }
+
+    .priority-row {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:1rem 1.25rem; border-bottom:1px solid var(--border);
+    }
+    .priority-row:last-child { border-bottom:none; }
+
+    /* Icon preview in outcome modal */
+    .icon-preview { width:36px; height:36px; border-radius:8px; background:var(--bg-secondary); display:flex; align-items:center; justify-content:center; font-size:1rem; border:1px solid var(--border); flex-shrink:0; }
+
+    /* ── Aston Martin Theme ── */
+    [data-theme="aston-martin"] {
+      --bg-primary: #071510;
+      --bg-secondary: #0E2419;
+      --bg-card: #0E2419;
+      --bg-hover: #163320;
+      --text-primary: #EAF5EF;
+      --text-secondary: #6FA885;
+      --border: #1B4530;
+      --nav-bg: rgba(7,21,16,.98);
+      --accent: #00A855;
+      --accent-light: #2DD47A;
+      --clr-success: #00A855;
+      --clr-warning: #C9991A;
+      --clr-danger: #C53030;
+      --clr-info: #3A85A8;
+    }
+    [data-theme="aston-martin"] .hero-bar {
+      background: linear-gradient(90deg,#002B15,#005A2E,#00A855,#2DD47A,#A8B8B0);
+    }
+    [data-theme="aston-martin"] .brand-text {
+      background: linear-gradient(135deg,#00A855,#2DD47A);
+      -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
+    }
+    [data-theme="aston-martin"] .btn-accent {
+      background: linear-gradient(135deg,#005A2E,#00A855);
+    }
+    [data-theme="aston-martin"] .btn-accent:hover {
+      background: linear-gradient(135deg,#004522,#007840);
+    }
+    [data-theme="aston-martin"] .brand-icon {
+      background: linear-gradient(135deg,#005A2E,#00A855);
+    }
+
+    /* ── Theme cards (Admin > Themes tab) ── */
+    .theme-card {
+      border-radius: 16px; overflow: hidden; cursor: pointer;
+      transition: transform .22s, box-shadow .22s;
+    }
+    .theme-card:hover { transform: translateY(-4px); box-shadow: 0 12px 32px rgba(0,0,0,.4); }
+    .theme-card.is-active { outline: 3px solid var(--accent); outline-offset: 2px; }
+    .tc-bar  { height: 6px; }
+    .tc-body { padding: 1rem 1.1rem; }
+    .tc-foot { padding: .85rem 1.1rem; }
+    .tc-swatch { width:20px; height:20px; border-radius:5px; display:inline-block; }
+
+    /* ── Navbar user button ── */
+    .nav-user-btn {
+      width:36px; height:36px; border-radius:50%; border:2px solid var(--border);
+      background:linear-gradient(135deg,var(--accent),var(--accent-light));
+      display:flex; align-items:center; justify-content:center;
+      cursor:pointer; overflow:hidden; transition:border-color .2s, box-shadow .2s; padding:0;
+      flex-shrink:0;
+    }
+    .nav-user-btn:hover { border-color:var(--accent); box-shadow:0 0 0 3px rgba(99,102,241,.25); }
+    .nav-user-initials { font-size:.8rem; font-weight:700; color:#fff; pointer-events:none; }
+    .nav-user-img { width:100%; height:100%; object-fit:cover; display:none; }
+    .nav-user-dropdown {
+      min-width:220px; padding:.5rem 0;
+      background:var(--bg-card) !important; border:1px solid var(--border) !important;
+      border-radius:12px !important; box-shadow:0 8px 32px rgba(0,0,0,.35) !important;
+    }
+    .nav-user-header { padding:.75rem 1rem .5rem; border-bottom:1px solid var(--border); margin-bottom:.25rem; }
+    .nav-user-name  { font-weight:700; font-size:.92rem; color:var(--text-primary); }
+    .nav-user-role  { font-size:.74rem; color:var(--text-secondary); }
+    .nav-menu-item  { padding:.45rem 1rem; display:flex; align-items:center; gap:.65rem; color:var(--text-primary) !important; font-size:.86rem; text-decoration:none; cursor:pointer; transition:background .15s; }
+    .nav-menu-item:hover { background:var(--bg-secondary) !important; }
+    .nav-menu-item i { width:16px; text-align:center; color:var(--text-secondary); font-size:.85rem; }
+    .nav-menu-item:hover i { color:var(--accent); }
+    .nav-menu-divider { border-color:var(--border) !important; margin:.3rem 0; }
+
+    /* ── Login overlay ── */
+    .login-overlay {
+      position:fixed; inset:0; z-index:9000;
+      background:var(--bg-primary);
+      display:flex; align-items:center; justify-content:center;
+      opacity:0; pointer-events:none; transition:opacity .3s;
+    }
+    .login-overlay.visible { opacity:1; pointer-events:all; }
+    .login-box {
+      width:100%; max-width:420px; padding:1.5rem;
+    }
+    .login-card {
+      background:var(--bg-card); border:1px solid var(--border);
+      border-radius:20px; padding:2.5rem 2rem; text-align:center;
+    }
+    .login-logo { width:64px; height:64px; border-radius:16px; background:linear-gradient(135deg,#6366f1,#8b5cf6); display:flex; align-items:center; justify-content:center; margin:0 auto 1.25rem; }
+    .login-title { font-size:1.4rem; font-weight:800; margin-bottom:.25rem; }
+    .login-sub   { font-size:.83rem; color:var(--text-secondary); margin-bottom:1.75rem; }
+
+    /* ── Profile & Security views (rendered dynamically) ── */
+    .pass-toggle { border-radius:0 8px 8px 0 !important; border-left:none !important; }
+    .perm-row { display:flex; justify-content:space-between; align-items:center; padding:.45rem 0; border-bottom:1px solid var(--border); }
+    .perm-row:last-child { border-bottom:none; }
+
+    /* ── File Attachments ── */
+    .drop-zone {
+      border:2px dashed var(--border); border-radius:12px; padding:1.75rem;
+      text-align:center; cursor:pointer; transition:all .2s; background:var(--bg-secondary);
+    }
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color:var(--accent); background:rgba(99,102,241,.06);
+    }
+    .drop-zone .drop-icon { font-size:2rem; color:var(--text-secondary); display:block; margin-bottom:.5rem; }
+    .attach-item {
+      display:flex; align-items:center; gap:.75rem; padding:.8rem 1rem;
+      border-bottom:1px solid var(--border); transition:background .15s;
+    }
+    .attach-item:last-child { border-bottom:none; }
+    .attach-item:hover { background:var(--bg-hover); }
+    .attach-icon { width:38px; height:38px; border-radius:8px; display:flex; align-items:center; justify-content:center; font-size:1rem; flex-shrink:0; }
+    .min-w-0 { min-width:0; }
+
+    /* ── Calendar ── */
+    .cal-grid { display:grid; grid-template-columns:repeat(7,1fr); }
+    .cal-hdr  { text-align:center; padding:.55rem .25rem; font-size:.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.06em; color:var(--text-secondary); background:var(--bg-secondary); border-bottom:1px solid var(--border); }
+    .cal-cell { min-height:96px; border-right:1px solid var(--border); border-bottom:1px solid var(--border); padding:.45rem .5rem; cursor:pointer; transition:background .15s; position:relative; }
+    .cal-cell:nth-child(7n) { border-right:none; }
+    .cal-cell:hover { background:var(--bg-hover); }
+    .cal-cell.is-today { background:rgba(99,102,241,.07); }
+    .cal-cell.other-mo { opacity:.3; pointer-events:none; }
+    .cal-num  { font-size:.82rem; font-weight:700; width:26px; height:26px; border-radius:50%; display:flex; align-items:center; justify-content:center; margin-bottom:.3rem; }
+    .cal-cell.is-today .cal-num { background:var(--accent); color:#fff; }
+    .cal-ev   { font-size:.67rem; padding:.18rem .45rem; border-radius:4px; margin-bottom:.22rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; cursor:pointer; font-weight:500; transition:filter .15s; }
+    .cal-ev:hover { filter:brightness(1.18); }
+  </style>
+</head>
+<body>
+
+<div class="hero-bar"></div>
+
+<!-- ══ NAVBAR ══ -->
+<nav class="navbar navbar-custom sticky-top">
+  <div class="container-fluid">
+    <a class="navbar-brand d-flex align-items-center gap-2" href="#" onclick="goHome();return false;" style="cursor:pointer;">
+      <div class="brand-icon"><i class="fas fa-headset text-white" style="font-size:.95rem;"></i></div>
+      <span class="brand-text">SupportTrack Pro</span>
+    </a>
+    <div class="d-flex align-items-center gap-3">
+      <div class="file-status" id="fileStatus">
+        <div class="status-dot dot-off"></div>
+        <span style="color:var(--text-secondary);">No file loaded</span>
+      </div>
+      <div class="d-flex gap-2">
+        <button class="btn btn-sm btn-ghost" onclick="promptFileAction()" title="File options"><i class="fas fa-database"></i></button>
+        <button class="btn btn-sm btn-ghost" onclick="showCalendar()" title="Calendar"><i class="fas fa-calendar-alt"></i></button>
+        <button class="btn btn-sm btn-ghost" onclick="showAdmin()" title="Administration"><i class="fas fa-cog"></i></button>
+        <button id="themeBtn" class="btn btn-sm btn-ghost" onclick="toggleTheme()"><i class="fas fa-moon"></i></button>
+        <!-- User dropdown -->
+        <div class="dropdown">
+          <button class="nav-user-btn dropdown-toggle" data-bs-toggle="dropdown" aria-expanded="false"
+                  style="border:none;" title="User menu">
+            <img id="navUserImg" class="nav-user-img" alt="avatar">
+            <span id="navUserInitials" class="nav-user-initials">A</span>
+          </button>
+          <ul class="dropdown-menu dropdown-menu-end nav-user-dropdown">
+            <li>
+              <div class="nav-user-header">
+                <div class="nav-user-name" id="navUserName">Administrator</div>
+                <div class="nav-user-role" id="navUserGroup">Admin</div>
+              </div>
+            </li>
+            <li><a class="nav-menu-item" href="#" onclick="showProfile()"><i class="fas fa-user-circle"></i>User Profile</a></li>
+            <li><a class="nav-menu-item" href="#" onclick="showSecurity()"><i class="fas fa-shield-alt"></i>Security Settings</a></li>
+            <li><a class="nav-menu-item" href="#" onclick="showAdmin()"><i class="fas fa-cog"></i>Admin Settings</a></li>
+            <li><hr class="nav-menu-divider dropdown-divider"></li>
+            <li id="navLogoutRow" style="display:none;">
+              <a class="nav-menu-item" href="#" onclick="doLogout()" style="color:#ef4444 !important;">
+                <i class="fas fa-sign-out-alt" style="color:#ef4444 !important;"></i>Sign Out
+              </a>
+            </li>
+          </ul>
+        </div>
+        <button class="btn btn-sm btn-accent" onclick="openNewCaseModal()"><i class="fas fa-plus me-1"></i>New Case</button>
+      </div>
+    </div>
+  </div>
+</nav>
+
+<div class="container-fluid p-3 p-lg-4">
+
+  <!-- ══ HOME VIEW ══ -->
+  <div id="viewHome" class="view active">
+    <div class="row g-3 mb-4">
+      <div class="col-6 col-md-3">
+        <div class="stat-card c-accent">
+          <div class="d-flex justify-content-between align-items-start">
+            <div><div class="stat-label">Open</div><div class="stat-value" id="sOpen">0</div></div>
+            <div class="stat-icon" style="background:rgba(99,102,241,.15);"><i class="fas fa-folder-open" style="color:#6366f1;"></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card c-success">
+          <div class="d-flex justify-content-between align-items-start">
+            <div><div class="stat-label">Closed</div><div class="stat-value" id="sClosed">0</div></div>
+            <div class="stat-icon" style="background:rgba(16,185,129,.15);"><i class="fas fa-check-circle" style="color:#10b981;"></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card c-warning">
+          <div class="d-flex justify-content-between align-items-start">
+            <div><div class="stat-label">Pending</div><div class="stat-value" id="sPending">0</div></div>
+            <div class="stat-icon" style="background:rgba(245,158,11,.15);"><i class="fas fa-hourglass-half" style="color:#f59e0b;"></i></div>
+          </div>
+        </div>
+      </div>
+      <div class="col-6 col-md-3">
+        <div class="stat-card c-danger">
+          <div class="d-flex justify-content-between align-items-start">
+            <div><div class="stat-label">Total Time</div><div class="stat-value" id="sTime" style="font-size:1.5rem;margin-top:.15rem;">0h 0m</div></div>
+            <div class="stat-icon" style="background:rgba(239,68,68,.15);"><i class="fas fa-stopwatch" style="color:#ef4444;"></i></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="content-card">
+      <div class="d-flex justify-content-between align-items-center px-3 pt-3 pb-2">
+        <h6 class="mb-0 fw-bold"><i class="fas fa-table-list me-2" style="color:var(--accent);"></i>Support Cases</h6>
+      </div>
+      <!-- Dynamic filter tabs -->
+      <div class="filter-tabs" id="filterTabs"></div>
+      <div class="p-3">
+        <table id="casesTable" class="table w-100" style="border-color:var(--border);">
+          <thead>
+            <tr>
+              <th>Case #</th><th>Title / Company</th><th>Category</th>
+              <th>Priority</th><th>Status</th><th>Calls</th><th>Time Spent</th><th>Last Updated</th>
+            </tr>
+          </thead>
+          <tbody id="casesTbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div><!-- /viewHome -->
+
+  <!-- ══ DETAIL VIEW ══ -->
+  <div id="viewDetail" class="view">
+    <div class="d-flex align-items-center gap-3 mb-3">
+      <button class="btn btn-sm btn-ghost" onclick="goHome()"><i class="fas fa-arrow-left me-1"></i>Back</button>
+      <nav><ol class="breadcrumb mb-0">
+        <li class="breadcrumb-item"><a href="#" onclick="goHome()" style="color:var(--accent);">Home</a></li>
+        <li class="breadcrumb-item active" style="color:var(--text-secondary);" id="bcCase">Case</li>
+      </ol></nav>
+    </div>
+
+    <div class="content-card mb-3">
+      <div class="case-header">
+        <div class="d-flex justify-content-between align-items-start flex-wrap gap-3">
+          <div class="flex-grow-1">
+            <div class="case-number-label" id="dCaseNum">CASE-0001</div>
+            <div class="case-title-big mt-1" id="dTitle">—</div>
+            <div class="d-flex flex-wrap gap-2 mt-2" id="dBadges"></div>
+          </div>
+          <div class="d-flex gap-2 align-items-start flex-wrap">
+            <button class="btn btn-sm btn-accent" onclick="openAddCallModal()"><i class="fas fa-phone-alt me-1"></i>Add Call</button>
+            <button class="btn btn-sm btn-ghost" onclick="openScheduleModal()" title="Schedule a follow-up event"><i class="fas fa-calendar-plus me-1"></i>Schedule</button>
+            <button class="btn btn-sm btn-ghost" onclick="openReportModal()" title="Generate PDF report"><i class="fas fa-file-pdf me-1"></i>Create Report</button>
+            <div class="dropdown">
+              <button class="btn btn-sm btn-ghost dropdown-toggle" data-bs-toggle="dropdown"><i class="fas fa-ellipsis-v"></i></button>
+              <ul class="dropdown-menu dropdown-menu-end">
+                <li><a class="dropdown-item" href="#" onclick="editCase()"><i class="fas fa-edit me-2"></i>Edit Case</a></li>
+                <li><a class="dropdown-item" href="#" onclick="toggleStatus()"><i class="fas fa-exchange-alt me-2"></i>Toggle Status</a></li>
+                <li><hr class="dropdown-divider"></li>
+                <li><a class="dropdown-item text-danger" href="#" onclick="deleteCase()"><i class="fas fa-trash me-2"></i>Delete Case</a></li>
+              </ul>
+            </div>
+          </div>
+        </div>
+        <div class="info-grid mt-3" id="dInfoGrid"></div>
+      </div>
+      <div class="p-3" style="border-top:1px solid var(--border);">
+        <label style="font-size:.7rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Description</label>
+        <p class="mb-0 mt-1" id="dDesc" style="font-size:.9rem;line-height:1.65;"></p>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <!-- Timer column -->
+      <div class="col-lg-4">
+        <div class="timer-card mb-3">
+          <div class="d-flex justify-content-between align-items-center mb-3">
+            <h6 class="mb-0 fw-bold"><i class="fas fa-stopwatch me-2" style="color:var(--accent);"></i>Session Timer</h6>
+            <span id="timerBadge" class="badge bstat" style="background:var(--bg-secondary);color:var(--text-secondary);">IDLE</span>
+          </div>
+          <div class="timer-display" id="timerDisplay">00:00:00</div>
+          <div class="timer-sub mt-1" id="timerTotal">Total case time: 0m</div>
+          <div class="d-flex justify-content-center gap-4 mt-3">
+            <button id="btnStart" class="tbtn tbtn-start" onclick="timerStart()" title="Start"><i class="fas fa-play"></i></button>
+            <button id="btnPause" class="tbtn tbtn-pause" onclick="timerPause()" title="Pause" disabled><i class="fas fa-pause"></i></button>
+            <button id="btnStop"  class="tbtn tbtn-stop"  onclick="timerStop()"  title="Stop & Save" disabled><i class="fas fa-stop"></i></button>
+          </div>
+          <p class="text-center mt-3 mb-0" style="font-size:.73rem;color:var(--text-secondary);">
+            Stop saves elapsed time &amp; opens the call log
+          </p>
+        </div>
+        <div class="content-card p-3">
+          <h6 class="fw-bold mb-3" style="font-size:.82rem;"><i class="fas fa-chart-bar me-2" style="color:var(--accent);"></i>Case Stats</h6>
+          <div id="caseStats"></div>
+        </div>
+      </div>
+
+      <!-- Calls column -->
+      <div class="col-lg-8">
+        <div class="d-flex justify-content-between align-items-center mb-3">
+          <h6 class="mb-0 fw-bold">
+            <i class="fas fa-phone-alt me-2" style="color:var(--accent);"></i>Call Log
+            <span id="callCountBadge" class="badge ms-1" style="background:var(--bg-secondary);color:var(--text-secondary);">0</span>
+          </h6>
+          <button class="btn btn-sm btn-accent" onclick="openAddCallModal()"><i class="fas fa-plus me-1"></i>Add Call</button>
+        </div>
+        <div id="callsList"></div>
+      </div>
+    </div>
+
+    <!-- ── Attachments ── -->
+    <div class="content-card mt-3">
+      <div class="d-flex justify-content-between align-items-center p-3" style="border-bottom:1px solid var(--border);">
+        <h6 class="mb-0 fw-bold">
+          <i class="fas fa-paperclip me-2" style="color:var(--accent);"></i>Attachments
+          <span id="attachCountBadge" class="badge ms-1" style="background:var(--bg-secondary);color:var(--text-secondary);">0</span>
+        </h6>
+        <label class="btn btn-sm btn-ghost mb-0" style="cursor:pointer;">
+          <i class="fas fa-plus me-1"></i>Browse Files
+          <input type="file" multiple style="display:none;" onchange="handleAttachFile(event)">
+        </label>
+      </div>
+      <div class="p-3 pb-0">
+        <div class="drop-zone"
+             ondragover="event.preventDefault();this.classList.add('dragover')"
+             ondragleave="this.classList.remove('dragover')"
+             ondrop="handleAttachDrop(event)"
+             onclick="this.nextElementSibling.click()">
+          <i class="fas fa-cloud-upload-alt drop-icon"></i>
+          <div style="font-weight:600;font-size:.9rem;color:var(--text-secondary);">Drag &amp; drop files here</div>
+          <div style="font-size:.78rem;color:var(--text-secondary);margin-top:.2rem;">or click to browse</div>
+        </div>
+        <input type="file" multiple style="display:none;" onchange="handleAttachFile(event)">
+      </div>
+      <div id="attachList" class="mt-2"></div>
+    </div>
+
+  </div><!-- /viewDetail -->
+
+  <!-- ══ ADMIN VIEW ══ -->
+  <div id="viewAdmin" class="view">
+    <div class="d-flex align-items-center gap-3 mb-4">
+      <button class="btn btn-sm btn-ghost" onclick="goHome()"><i class="fas fa-arrow-left me-1"></i>Back</button>
+      <div>
+        <h5 class="mb-0 fw-bold"><i class="fas fa-cog me-2" style="color:var(--accent);"></i>Administration</h5>
+        <div style="font-size:.78rem;color:var(--text-secondary);">Manage status types, outcomes, categories &amp; priority colors</div>
+      </div>
+    </div>
+
+    <div class="content-card">
+      <div class="admin-tabs" id="adminTabs">
+        <button class="admin-tab-btn active" onclick="switchAdminTab('statuses',this)"><i class="fas fa-traffic-light me-1"></i>Status Types</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('outcomes',this)"><i class="fas fa-clipboard-check me-1"></i>Outcome Types</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('categories',this)"><i class="fas fa-tags me-1"></i>Categories</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('priorities',this)"><i class="fas fa-flag me-1"></i>Priority Colors</button>
+        <button class="admin-tab-btn" onclick="switchAdminTab('themes',this)"><i class="fas fa-palette me-1"></i>Themes</button>
+      </div>
+      <div id="adminContent" class="p-3"></div>
+    </div>
+  </div><!-- /viewAdmin -->
+
+  <!-- ══ PROFILE VIEW ══ -->
+  <div id="viewProfile" class="view">
+    <div id="profileView"><!-- rendered by renderProfile() --></div>
+  </div>
+
+  <!-- ══ SECURITY VIEW ══ -->
+  <div id="viewSecurity" class="view">
+    <div id="securityView"><!-- rendered by renderSecurity() --></div>
+  </div>
+
+  <!-- ══ CALENDAR VIEW ══ -->
+  <div id="viewCalendar" class="view">
+    <div id="calendarView"><!-- rendered by renderCalendar() --></div>
+  </div>
+
+</div><!-- /container -->
+
+<!-- ══ LOGIN OVERLAY ══ -->
+<div id="loginOverlay" class="login-overlay">
+  <div class="login-box">
+    <!-- Gradient bar at top -->
+    <div style="height:4px;background:linear-gradient(90deg,#6366f1,#8b5cf6,#ec4899,#f59e0b);border-radius:4px 4px 0 0;margin-bottom:-1px;"></div>
+    <div class="login-card" style="border-radius:0 0 20px 20px;">
+      <div class="login-logo"><i class="fas fa-headset text-white" style="font-size:1.5rem;"></i></div>
+      <div class="login-title">SupportTrack Pro</div>
+      <div class="login-sub">Sign in to continue</div>
+      <div class="mb-3 text-start">
+        <label class="form-label">Username</label>
+        <input type="text" class="form-control" id="loginUser" placeholder="Enter your username"
+               autocomplete="username" onkeydown="if(event.key==='Enter')document.getElementById('loginPass').focus()">
+      </div>
+      <div class="mb-3 text-start">
+        <label class="form-label">Password</label>
+        <div class="input-group">
+          <input type="password" class="form-control" id="loginPass" placeholder="Enter your password"
+                 autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+          <button class="btn btn-ghost pass-toggle" type="button" onclick="togglePassVis('loginPass',this)"><i class="fas fa-eye"></i></button>
+        </div>
+      </div>
+      <div id="loginError" class="alert mb-3 py-2" style="display:none;background:rgba(239,68,68,.12);border:1px solid rgba(239,68,68,.3);color:#ef4444;font-size:.85rem;">
+        <i class="fas fa-exclamation-circle me-1"></i>Invalid username or password.
+      </div>
+      <button class="btn btn-accent w-100 py-2" onclick="doLogin()" style="font-size:.95rem;">
+        <i class="fas fa-sign-in-alt me-2"></i>Sign In
+      </button>
+      <div class="mt-3" style="font-size:.75rem;color:var(--text-secondary);">
+        <i class="fas fa-lock me-1"></i>Login is required by your administrator.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: New Case ══ -->
+<div class="modal fade" id="mdlNewCase" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-plus-circle me-2" style="color:var(--accent);"></i>New Support Case</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-md-8"><label class="form-label">Case Title *</label><input type="text" class="form-control" id="ncTitle" placeholder="Brief description of the issue"></div>
+          <div class="col-md-4"><label class="form-label">Priority</label><select class="form-select" id="ncPriority"></select></div>
+          <div class="col-md-6"><label class="form-label">Company / Organization *</label><input type="text" class="form-control" id="ncCompany" placeholder="e.g. Chase Bank, Verizon"></div>
+          <div class="col-md-6"><label class="form-label">Category</label><select class="form-select" id="ncCategory"></select></div>
+          <div class="col-md-6"><label class="form-label">Support Phone</label><input type="text" class="form-control" id="ncPhone" placeholder="1-800-xxx-xxxx"></div>
+          <div class="col-md-6"><label class="form-label">Account / Policy Number</label><input type="text" class="form-control" id="ncAccount" placeholder="Your account number"></div>
+          <div class="col-12"><label class="form-label">Description</label><textarea class="form-control" id="ncDesc" rows="3" placeholder="Describe the issue in detail..."></textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-accent" onclick="saveNewCase()"><i class="fas fa-save me-1"></i>Create Case</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Edit Case ══ -->
+<div class="modal fade" id="mdlEditCase" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-edit me-2" style="color:var(--accent);"></i>Edit Case</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-md-8"><label class="form-label">Case Title *</label><input type="text" class="form-control" id="ecTitle"></div>
+          <div class="col-md-4"><label class="form-label">Priority</label><select class="form-select" id="ecPriority"></select></div>
+          <div class="col-md-6"><label class="form-label">Company *</label><input type="text" class="form-control" id="ecCompany"></div>
+          <div class="col-md-6"><label class="form-label">Category</label><select class="form-select" id="ecCategory"></select></div>
+          <div class="col-md-6"><label class="form-label">Support Phone</label><input type="text" class="form-control" id="ecPhone"></div>
+          <div class="col-md-6"><label class="form-label">Account Number</label><input type="text" class="form-control" id="ecAccount"></div>
+          <div class="col-md-6"><label class="form-label">Status</label><select class="form-select" id="ecStatus"></select></div>
+          <div class="col-12"><label class="form-label">Description</label><textarea class="form-control" id="ecDesc" rows="3"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-accent" onclick="saveEditCase()"><i class="fas fa-save me-1"></i>Save Changes</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Add Call ══ -->
+<div class="modal fade" id="mdlAddCall" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-phone-alt me-2" style="color:var(--accent);"></i>Log Support Call</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label">Date &amp; Time</label><input type="datetime-local" class="form-control" id="callDate"></div>
+          <div class="col-md-6"><label class="form-label">Duration (minutes)</label><input type="number" class="form-control" id="callDuration" placeholder="0" min="0"></div>
+          <div class="col-md-6"><label class="form-label">Representative Name</label><input type="text" class="form-control" id="callRep" placeholder="Agent's name"></div>
+          <div class="col-md-6"><label class="form-label">Reference / Ticket #</label><input type="text" class="form-control" id="callRef" placeholder="Confirmation number"></div>
+          <div class="col-12"><label class="form-label">Outcome</label><select class="form-select" id="callOutcome"></select></div>
+          <div class="col-12"><label class="form-label">Call Notes</label><textarea class="form-control" id="callNotes" rows="4" placeholder="What was discussed? Any next steps?"></textarea></div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-accent" onclick="saveCall()"><i class="fas fa-save me-1"></i>Save Call</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: File Actions ══ -->
+<div class="modal fade" id="mdlFile" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-database me-2" style="color:var(--accent);"></i>Data File</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <p style="color:var(--text-secondary);font-size:.88rem;">Your support cases are stored as a JSON file.</p>
+        <div class="d-grid gap-2">
+          <button class="btn btn-accent" onclick="fsOpen()"><i class="fas fa-folder-open me-2"></i>Open Existing File</button>
+          <button class="btn btn-ghost" onclick="fsCreate()"><i class="fas fa-file-circle-plus me-2"></i>Create New File</button>
+          <hr style="border-color:var(--border);">
+          <button class="btn btn-ghost" onclick="exportJSON()"><i class="fas fa-download me-2"></i>Export / Download JSON</button>
+          <label class="btn btn-ghost mb-0" style="cursor:pointer;">
+            <i class="fas fa-upload me-2"></i>Import JSON File
+            <input type="file" accept=".json" style="display:none;" onchange="importJSON(event)">
+          </label>
+        </div>
+        <div class="mt-3 p-2 rounded" style="background:var(--bg-secondary);font-size:.78rem;color:var(--text-secondary);">
+          <i class="fas fa-info-circle me-1"></i><strong>Tip:</strong> File System API works in Chrome &amp; Edge. Firefox users should use Export/Import.
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Admin Item (Status / Outcome / Category) ══ -->
+<div class="modal fade" id="mdlAdminItem" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="adminModalTitle">Add Item</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="adminModalBody"></div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-accent" onclick="saveAdminItem()"><i class="fas fa-save me-1"></i>Save</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Add / Edit User ══ -->
+<div class="modal fade" id="mdlAddUser" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="addUserModalTitle"><i class="fas fa-user-plus me-2" style="color:var(--accent);"></i>Add User</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-md-6"><label class="form-label">Display Name *</label><input type="text" class="form-control" id="auDisplayName" placeholder="Full name"></div>
+          <div class="col-md-6"><label class="form-label">Username *</label><input type="text" class="form-control" id="auUsername" placeholder="login username" autocomplete="off"></div>
+          <div class="col-md-6"><label class="form-label">Email Address</label><input type="email" class="form-control" id="auEmail" placeholder="user@example.com"></div>
+          <div class="col-md-6"><label class="form-label">Phone Number</label><input type="text" class="form-control" id="auPhone" placeholder=""></div>
+          <div class="col-md-6"><label class="form-label">Job Title</label><input type="text" class="form-control" id="auTitle" placeholder=""></div>
+          <div class="col-md-6"><label class="form-label">Department</label><input type="text" class="form-control" id="auDept" placeholder=""></div>
+          <div class="col-md-6"><label class="form-label">Security Group</label><select class="form-select" id="auGroup"></select></div>
+          <div class="col-md-6 d-flex align-items-end" id="auPasswordRow">
+            <div class="w-100">
+              <label class="form-label">Password</label>
+              <div class="input-group">
+                <input type="password" class="form-control" id="auPassword" placeholder="Set a password" autocomplete="new-password">
+                <button class="btn btn-ghost pass-toggle" type="button" onclick="togglePassVis('auPassword',this)"><i class="fas fa-eye"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button class="btn btn-accent" onclick="saveNewUser()"><i class="fas fa-save me-1"></i>Save User</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Case Report ══ -->
+<div class="modal fade" id="mdlReport" tabindex="-1">
+  <div class="modal-dialog modal-xl modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="reportModalTitle">
+          <i class="fas fa-file-pdf me-2" style="color:#ef4444;"></i>Case Report
+        </h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body p-0" style="background:#525659;min-height:500px;position:relative;">
+        <div id="reportSpinner" style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:2;">
+          <div class="text-center">
+            <div class="spinner-border mb-3" style="color:var(--accent);width:3rem;height:3rem;" role="status"></div>
+            <div style="color:#fff;font-size:.88rem;">Generating report…</div>
+          </div>
+        </div>
+        <iframe id="reportPreviewFrame" style="width:100%;height:72vh;border:none;display:none;" title="Report Preview"></iframe>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <div style="font-size:.78rem;color:var(--text-secondary);">
+          <i class="fas fa-lock me-1"></i>Generated entirely in your browser — no data leaves your device.
+        </div>
+        <div class="d-flex gap-2">
+          <button class="btn btn-ghost" onclick="reportEmail()"><i class="fas fa-envelope me-1"></i>Email</button>
+          <button class="btn btn-ghost" onclick="reportPrint()"><i class="fas fa-print me-1"></i>Print</button>
+          <button class="btn btn-accent" onclick="reportSave()"><i class="fas fa-download me-1"></i>Save PDF</button>
+          <button class="btn btn-secondary" data-bs-dismiss="modal"><i class="fas fa-times me-1"></i>Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Schedule Event ══ -->
+<div class="modal fade" id="mdlSchedule" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-calendar-plus me-2" style="color:var(--accent);"></i>Schedule Event</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="row g-3">
+          <div class="col-12">
+            <label class="form-label">Event Title *</label>
+            <input type="text" class="form-control" id="schTitle" placeholder="e.g. Follow-up call with support team">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">Start Date &amp; Time</label>
+            <input type="datetime-local" class="form-control" id="schStart">
+          </div>
+          <div class="col-md-6">
+            <label class="form-label">End Date &amp; Time</label>
+            <input type="datetime-local" class="form-control" id="schEnd">
+          </div>
+          <div class="col-md-8">
+            <label class="form-label">Location</label>
+            <input type="text" class="form-control" id="schLocation" placeholder="e.g. Phone call / Zoom / Office">
+          </div>
+          <div class="col-md-4">
+            <label class="form-label">Reminder</label>
+            <select class="form-select" id="schReminder">
+              <option value="0">No reminder</option>
+              <option value="5">5 minutes before</option>
+              <option value="10">10 minutes before</option>
+              <option value="15" selected>15 minutes before</option>
+              <option value="30">30 minutes before</option>
+              <option value="60">1 hour before</option>
+              <option value="1440">1 day before</option>
+            </select>
+          </div>
+          <div class="col-12">
+            <label class="form-label">Description / Notes</label>
+            <textarea class="form-control" id="schDesc" rows="4" placeholder="Additional details, agenda items, reference numbers..."></textarea>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <button class="btn btn-secondary" data-bs-dismiss="modal"><i class="fas fa-times me-1"></i>Cancel</button>
+        <div class="d-flex gap-2">
+          <button class="btn btn-ghost" onclick="saveScheduledEvent()"><i class="fas fa-calendar-check me-1"></i>Save to Calendar</button>
+          <button class="btn btn-accent" onclick="saveAndDownloadEvent()" style="background:linear-gradient(135deg,#0a5fad,#0078d4);">
+            <i class="fab fa-microsoft me-1"></i>Outlook
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ══ MODAL: Calendar Event Detail ══ -->
+<div class="modal fade" id="mdlCalEvent" tabindex="-1">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="fas fa-calendar-check me-2" style="color:var(--accent);"></i>Event Details</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <h6 class="fw-bold mb-3" id="calEvTitle" style="font-size:1.05rem;"></h6>
+        <div class="info-grid mb-3">
+          <div class="info-item"><label>Start</label><div class="val" id="calEvStart"></div></div>
+          <div class="info-item"><label>End</label><div class="val" id="calEvEnd"></div></div>
+          <div class="info-item"><label>Location</label><div class="val" id="calEvLocation"></div></div>
+          <div class="info-item"><label>Linked Case</label><div class="val" id="calEvCase"></div></div>
+        </div>
+        <div>
+          <label style="font-size:.7rem;color:var(--text-secondary);text-transform:uppercase;letter-spacing:.06em;font-weight:700;">Description</label>
+          <p class="mb-0 mt-1" id="calEvDesc" style="font-size:.88rem;line-height:1.65;white-space:pre-wrap;"></p>
+        </div>
+      </div>
+      <div class="modal-footer justify-content-between">
+        <button class="btn btn-danger-ghost" id="calEvDeleteBtn" onclick="deleteCalEvent(this.dataset.eid)"><i class="fas fa-trash-alt me-1"></i>Delete</button>
+        <div class="d-flex gap-2">
+          <button class="btn btn-ghost" id="calEvICSBtn" onclick="downloadEventICS(this.dataset.eid)" style="background:linear-gradient(135deg,#0a5fad,#0078d4);color:#fff;border:none;">
+            <i class="fab fa-microsoft me-1"></i>Outlook
+          </button>
+          <button class="btn btn-secondary" data-bs-dismiss="modal"><i class="fas fa-times me-1"></i>Close</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
+<div class="position-fixed bottom-0 end-0 p-3" style="z-index:9999;">
+  <div id="appToast" class="toast text-white border-0" role="alert">
+    <div class="d-flex">
+      <div class="toast-body" id="toastMsg"></div>
+      <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast"></button>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/datatables.net@1.13.7/js/jquery.dataTables.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/datatables.net-bs5@1.13.7/js/dataTables.bootstrap5.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf-autotable@3.6.0/dist/jspdf.plugin.autotable.min.js"></script>
+
+<script>
+// ════════════════════════════════════════════════════════════
+// STATE
+// ════════════════════════════════════════════════════════════
+let DB       = { version:'1.0', config:null, cases:[] };
+let fileHandle = null;
+let activeCase = null;
+let dtable     = null;
+let curFilter  = 'non-closed';
+let adminTab   = 'statuses';
+let adminCtx   = { type:null, id:null };
+
+// Timer
+let timerSec=0, timerRunning=false, timerPaused=false, timerTick=null;
+
+// Calendar
+let calYear  = new Date().getFullYear();
+let calMonth = new Date().getMonth();
+let _schedCaseId = null;
+
+// ════════════════════════════════════════════════════════════
+// DEFAULT CONFIG
+// ════════════════════════════════════════════════════════════
+function defaultConfig() {
+  return {
+    statuses:[
+      { id:'st1', value:'open',    label:'Open',    color:'#10b981' },
+      { id:'st2', value:'active',  label:'Active',  color:'#6366f1' },
+      { id:'st3', value:'pending', label:'Pending', color:'#f59e0b' },
+      { id:'st4', value:'closed',  label:'Closed',  color:'#94a3b8' }
+    ],
+    outcomes:[
+      { id:'oc1', value:'resolved',      label:'Resolved',       icon:'fa-check-circle', color:'#10b981' },
+      { id:'oc2', value:'escalated',     label:'Escalated',      icon:'fa-level-up-alt', color:'#ef4444' },
+      { id:'oc3', value:'callback',      label:'Callback',       icon:'fa-phone-square', color:'#3b82f6' },
+      { id:'oc4', value:'follow-up',     label:'Follow-up',      icon:'fa-redo',         color:'#f59e0b' },
+      { id:'oc5', value:'no-resolution', label:'No Resolution',  icon:'fa-times-circle', color:'#94a3b8' }
+    ],
+    categories:[
+      { id:'ca1', label:'Banking' },    { id:'ca2', label:'Insurance' },
+      { id:'ca3', label:'Telecom' },    { id:'ca4', label:'Retail' },
+      { id:'ca5', label:'Technology' }, { id:'ca6', label:'Utilities' },
+      { id:'ca7', label:'Healthcare' }, { id:'ca8', label:'Government' },
+      { id:'ca9', label:'Other' }
+    ],
+    priorities:[
+      { value:'critical', label:'Critical', color:'#ef4444' },
+      { value:'high',     label:'High',     color:'#f97316' },
+      { value:'medium',   label:'Medium',   color:'#f59e0b' },
+      { value:'low',      label:'Low',      color:'#10b981' }
+    ]
+  };
+}
+
+function getCfg() {
+  if (!DB.config) DB.config = defaultConfig();
+  return DB.config;
+}
+
+// ════════════════════════════════════════════════════════════
+// UTILITIES
+// ════════════════════════════════════════════════════════════
+const uid = () => typeof crypto !== 'undefined' && crypto.randomUUID
+  ? crypto.randomUUID()
+  : 'xxxx-xxxx-4xxx-yxxx'.replace(/[xy]/g,c=>{const r=Math.random()*16|0;return(c==='x'?r:(r&0x3|0x8)).toString(16);});
+
+const esc = s => String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function hexRgba(hex, a) {
+  const h = hex.replace('#','');
+  const r = parseInt(h.slice(0,2),16);
+  const g = parseInt(h.slice(2,4),16);
+  const b = parseInt(h.slice(4,6),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+function fmtSecs(s) {
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60), sec=s%60;
+  return `${pad(h)}:${pad(m)}:${pad(sec)}`;
+}
+const pad = n => String(n).padStart(2,'0');
+
+function fmtDur(s) {
+  if (!s||s<=0) return '—';
+  const h=Math.floor(s/3600), m=Math.floor((s%3600)/60);
+  return h>0?`${h}h ${m}m`:`${m}m`;
+}
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-US',{month:'short',day:'numeric',year:'numeric'});
+}
+function fmtDT(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleString('en-US',{month:'short',day:'numeric',year:'numeric',hour:'numeric',minute:'2-digit'});
+}
+function caseNum() { return 'CASE-'+String(DB.cases.length+1).padStart(4,'0'); }
+function byId(id)  { return DB.cases.find(c=>c.id===id); }
+function totalTime(c) { return (c.calls||[]).reduce((s,x)=>s+(x.duration||0),0); }
+
+function toast(msg, type='success') {
+  const colors={success:'#10b981',error:'#ef4444',info:'#3b82f6',warning:'#f59e0b'};
+  const el=document.getElementById('appToast');
+  el.style.background=colors[type]||colors.info;
+  document.getElementById('toastMsg').textContent=msg;
+  new bootstrap.Toast(el,{delay:3000}).show();
+}
+
+function avatarColor(s) {
+  const c=['#6366f1','#8b5cf6','#ec4899','#3b82f6','#10b981','#f59e0b','#ef4444'];
+  return c[(s||'').charCodeAt(0)%c.length];
+}
+function avatar(company) {
+  const init=(company||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  return `<div class="co-avatar" style="background:${avatarColor(company)};">${init}</div>`;
+}
+
+// ── Dynamic badge functions ──
+function statusBadge(val) {
+  const st = getCfg().statuses.find(x=>x.value===val)||{label:val||'—',color:'#94a3b8'};
+  return `<span class="bstat" style="background:${hexRgba(st.color,.15)};color:${st.color};">${esc(st.label)}</span>`;
+}
+function prioBadge(val) {
+  const pr = getCfg().priorities.find(x=>x.value===val)||{label:val||'—',color:'#94a3b8'};
+  return `<span class="bstat" style="background:${hexRgba(pr.color,.15)};color:${pr.color};">
+    <span class="prio-dot" style="background:${pr.color};"></span>${esc(pr.label)}</span>`;
+}
+function outcomeBadge(val) {
+  const oc = getCfg().outcomes.find(x=>x.value===val)||{label:val||'—',color:'#94a3b8',icon:'fa-circle'};
+  return `<span class="bstat" style="background:${hexRgba(oc.color,.12)};color:${oc.color};">
+    <i class="fas ${oc.icon} me-1"></i>${esc(oc.label)}</span>`;
+}
+
+// ── Populate selects from config ──
+function populatePrioritySelect(selId, selected) {
+  document.getElementById(selId).innerHTML = getCfg().priorities
+    .map(p=>`<option value="${esc(p.value)}" ${p.value===selected?'selected':''}>${esc(p.label)}</option>`).join('');
+}
+function populateCategorySelect(selId, selected) {
+  document.getElementById(selId).innerHTML = getCfg().categories
+    .map(c=>`<option value="${esc(c.label)}" ${c.label===selected?'selected':''}>${esc(c.label)}</option>`).join('');
+}
+function populateStatusSelect(selId, selected) {
+  document.getElementById(selId).innerHTML = getCfg().statuses
+    .map(s=>`<option value="${esc(s.value)}" ${s.value===selected?'selected':''}>${esc(s.label)}</option>`).join('');
+}
+function populateOutcomeSelect(selId, selected) {
+  document.getElementById(selId).innerHTML = getCfg().outcomes
+    .map(o=>`<option value="${esc(o.value)}" ${o.value===selected?'selected':''}>${esc(o.label)}</option>`).join('');
+}
+
+// ════════════════════════════════════════════════════════════
+// THEME
+// ════════════════════════════════════════════════════════════
+function applyTheme(name) {
+  document.documentElement.setAttribute('data-theme', name);
+  // AM is a dark variant — keep Bootstrap in dark mode
+  document.documentElement.setAttribute('data-bs-theme', name === 'light' ? 'light' : 'dark');
+  const icon = document.querySelector('#themeBtn i');
+  if (icon) {
+    if (name === 'aston-martin') icon.className = 'fas fa-paint-brush';
+    else icon.className = name === 'light' ? 'fas fa-sun' : 'fas fa-moon';
+  }
+  localStorage.setItem('stp_theme', name);
+  // Refresh themes tab if it's visible
+  if (document.getElementById('adminContent') && adminTab === 'themes') renderThemesTab();
+}
+function toggleTheme() {
+  // If on a custom palette, revert to default dark; otherwise toggle dark↔light
+  const cur = document.documentElement.getAttribute('data-theme');
+  applyTheme(cur === 'dark' ? 'light' : 'dark');
+}
+function loadTheme() {
+  const t = localStorage.getItem('stp_theme') || 'dark';
+  applyTheme(t);
+}
+
+// ════════════════════════════════════════════════════════════
+// FILE SYSTEM
+// ════════════════════════════════════════════════════════════
+async function fsOpen() {
+  try {
+    if (!('showOpenFilePicker' in window)){toast('Use Import instead','warning');return;}
+    [fileHandle]=await window.showOpenFilePicker({types:[{description:'JSON',accept:{'application/json':['.json']}}]});
+    const file=await fileHandle.getFile();
+    const parsed=JSON.parse(await file.text());
+    DB=parsed;
+    if(!DB.cases) DB.cases=[];
+    if(!DB.config) DB.config=defaultConfig();
+    lsSave(); setFileStatus(true,file.name);
+    refreshAll();
+    bootstrap.Modal.getInstance(document.getElementById('mdlFile'))?.hide();
+    toast('File loaded — '+file.name,'success');
+  } catch(e){if(e.name!=='AbortError') toast('Error: '+e.message,'error');}
+}
+async function fsCreate() {
+  try {
+    if ('showSaveFilePicker' in window) {
+      fileHandle=await window.showSaveFilePicker({suggestedName:'support-cases.json',types:[{description:'JSON',accept:{'application/json':['.json']}}]});
+      DB={version:'1.0',config:defaultConfig(),cases:[]};
+      await fsWrite(); setFileStatus(true,'support-cases.json');
+    } else {
+      DB={version:'1.0',config:defaultConfig(),cases:[]}; lsSave();
+    }
+    refreshAll();
+    bootstrap.Modal.getInstance(document.getElementById('mdlFile'))?.hide();
+    toast('New data file ready','success');
+  } catch(e){if(e.name!=='AbortError') toast('Error: '+e.message,'error');}
+}
+async function fsWrite() {
+  if (!fileHandle) return;
+  try { const w=await fileHandle.createWritable(); await w.write(JSON.stringify(DB,null,2)); await w.close(); }
+  catch(e){ console.warn('Write failed',e); }
+}
+async function save() { lsSave(); if(fileHandle) await fsWrite(); }
+function lsSave() { try{localStorage.setItem('stpData',JSON.stringify(DB));}catch(e){} }
+function lsLoad() {
+  try {
+    const d=localStorage.getItem('stpData');
+    if(d){ DB=JSON.parse(d); if(!DB.cases) DB.cases=[]; if(!DB.config) DB.config=defaultConfig(); return true; }
+  }catch(e){}
+  return false;
+}
+function exportJSON() {
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([JSON.stringify(DB,null,2)],{type:'application/json'}));
+  a.download='support-cases.json'; a.click(); toast('Data exported','success');
+}
+function importJSON(e) {
+  const f=e.target.files[0]; if(!f) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    try{
+      DB=JSON.parse(ev.target.result);
+      if(!DB.cases) DB.cases=[];
+      if(!DB.config) DB.config=defaultConfig();
+      lsSave(); setFileStatus(false,f.name+' (imported)');
+      refreshAll();
+      bootstrap.Modal.getInstance(document.getElementById('mdlFile'))?.hide();
+      toast('Data imported','success');
+    }catch(err){toast('Invalid JSON file','error');}
+  };
+  r.readAsText(f); e.target.value='';
+}
+function setFileStatus(ok,name) {
+  document.getElementById('fileStatus').innerHTML=
+    `<div class="status-dot ${ok?'dot-ok':'dot-off'}"></div>
+     <span style="color:var(--text-secondary);">${esc(name||'')}</span>`;
+}
+function promptFileAction() { new bootstrap.Modal(document.getElementById('mdlFile')).show(); }
+
+// ════════════════════════════════════════════════════════════
+// VIEWS
+// ════════════════════════════════════════════════════════════
+function showView(id) {
+  document.querySelectorAll('.view').forEach(v=>v.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+function goHome() {
+  stopTimerSilent(); activeCase=null;
+  showView('viewHome'); updateStats(); refreshTable();
+}
+function showAdmin() {
+  showView('viewAdmin');
+  renderAdminTab('statuses');
+  document.querySelectorAll('.admin-tab-btn').forEach((b,i)=>b.classList.toggle('active',i===0));
+}
+
+// ════════════════════════════════════════════════════════════
+// STATS
+// ════════════════════════════════════════════════════════════
+function updateStats() {
+  const open   = DB.cases.filter(c=>c.status==='open').length;
+  const closed = DB.cases.filter(c=>c.status==='closed').length;
+  const pend   = DB.cases.filter(c=>c.status==='pending').length;
+  const secs   = DB.cases.reduce((s,c)=>s+totalTime(c),0);
+  document.getElementById('sOpen').textContent   = open;
+  document.getElementById('sClosed').textContent = closed;
+  document.getElementById('sPending').textContent= pend;
+  const h=Math.floor(secs/3600), m=Math.floor((secs%3600)/60);
+  document.getElementById('sTime').textContent=`${h}h ${m}m`;
+}
+
+// ════════════════════════════════════════════════════════════
+// FILTER TABS (dynamic from config)
+// ════════════════════════════════════════════════════════════
+function renderFilterTabs() {
+  const cfg=getCfg();
+  document.getElementById('filterTabs').innerHTML =
+    `<button class="ftab ${curFilter==='non-closed'?'active':''}" onclick="filterCases('non-closed')">All Active</button>` +
+    cfg.statuses.map(s=>
+      `<button class="ftab ${curFilter===s.value?'active':''}" onclick="filterCases('${s.value}')">
+        <i class="fas fa-circle me-1" style="font-size:.55rem;color:${s.color};"></i>${esc(s.label)}
+      </button>`
+    ).join('') +
+    `<button class="ftab ${curFilter==='all'?'active':''}" onclick="filterCases('all')">All</button>`;
+}
+
+function filterCases(f) {
+  curFilter=f; renderFilterTabs(); refreshTable();
+}
+
+// ════════════════════════════════════════════════════════════
+// TABLE
+// ════════════════════════════════════════════════════════════
+function filteredCases() {
+  if (curFilter==='all') return DB.cases;
+  if (curFilter==='non-closed') return DB.cases.filter(c=>c.status!=='closed');
+  return DB.cases.filter(c=>c.status===curFilter);
+}
+
+function refreshTable() {
+  renderFilterTabs();
+  if(dtable){dtable.destroy();dtable=null;}
+  const rows=filteredCases();
+  const tbody=document.getElementById('casesTbody');
+
+  if(!rows.length){
+    tbody.innerHTML=`<tr><td colspan="8">
+      <div class="empty-state">
+        <i class="fas fa-inbox"></i>
+        <p class="mb-1">No ${curFilter==='all'?'':curFilter+' '}cases found</p>
+        <small>Click <strong>New Case</strong> to get started</small>
+      </div></td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML=rows.map(c=>{
+    const t=totalTime(c);
+    return `<tr onclick="openCase('${c.id}')">
+      <td><span style="font-family:monospace;font-size:.8rem;color:var(--accent);">${esc(c.caseNumber)}</span></td>
+      <td>
+        <div class="d-flex align-items-center gap-2">
+          ${avatar(c.company)}
+          <div>
+            <div style="font-weight:600;font-size:.88rem;">${esc(c.title)}</div>
+            <div style="font-size:.75rem;color:var(--text-secondary);">${esc(c.company)}</div>
+          </div>
+        </div>
+      </td>
+      <td style="font-size:.82rem;color:var(--text-secondary);">${esc(c.category)}</td>
+      <td>${prioBadge(c.priority)}</td>
+      <td>${statusBadge(c.status)}</td>
+      <td><span class="badge" style="background:var(--bg-secondary);color:var(--text-secondary);">${(c.calls||[]).length}</span></td>
+      <td style="font-size:.82rem;color:var(--text-secondary);">${fmtDur(t)}</td>
+      <td style="font-size:.78rem;color:var(--text-secondary);">${fmtDate(c.updated)}</td>
+    </tr>`;
+  }).join('');
+
+  dtable=$('#casesTable').DataTable({
+    pageLength:15, order:[[7,'desc']],
+    language:{search:'',searchPlaceholder:'Search cases…',lengthMenu:'Show _MENU_'},
+    dom:'<"d-flex justify-content-between align-items-center mb-3"lf>rtip'
+  });
+}
+
+// ════════════════════════════════════════════════════════════
+// CASE DETAIL
+// ════════════════════════════════════════════════════════════
+function openCase(id) {
+  const c=byId(id); if(!c) return;
+  activeCase=id;
+  document.getElementById('dCaseNum').textContent=c.caseNumber;
+  document.getElementById('dTitle').textContent=c.title;
+  document.getElementById('bcCase').textContent=c.caseNumber;
+  document.getElementById('dDesc').textContent=c.description||'No description provided.';
+  refreshDetailBadges(c);
+  renderDetailInfo(c);
+  renderCalls(c); refreshCaseStats(c); updateTimerTotal(c);
+  renderAttachments(c);
+  timerReset();
+  showView('viewDetail');
+}
+
+function refreshDetailBadges(c) {
+  const cfg=getCfg();
+  const catColor=avatarColor(c.category);
+  document.getElementById('dBadges').innerHTML=
+    statusBadge(c.status)+' '+prioBadge(c.priority)+
+    ` <span class="bstat" style="background:${hexRgba(catColor,.15)};color:${catColor};">${esc(c.category)}</span>`;
+}
+
+function renderDetailInfo(c) {
+  document.getElementById('dInfoGrid').innerHTML=`
+    <div class="info-item"><label>Company</label><div class="val">${esc(c.company)}</div></div>
+    <div class="info-item"><label>Phone</label>
+      <div class="val">${c.phone?`<a href="tel:${esc(c.phone)}" style="color:var(--accent);">${esc(c.phone)}</a>`:'—'}</div></div>
+    <div class="info-item"><label>Account #</label><div class="val">${esc(c.accountNumber)||'—'}</div></div>
+    <div class="info-item"><label>Opened</label><div class="val">${fmtDate(c.created)}</div></div>
+    <div class="info-item"><label>Total Calls</label><div class="val">${(c.calls||[]).length}</div></div>
+    <div class="info-item"><label>Total Time</label><div class="val">${fmtDur(totalTime(c))||'—'}</div></div>`;
+}
+
+function renderCalls(c) {
+  const calls=[...(c.calls||[])].reverse();
+  document.getElementById('callCountBadge').textContent=calls.length;
+  if(!calls.length){
+    document.getElementById('callsList').innerHTML=`<div class="empty-state">
+      <i class="fas fa-phone-slash"></i>
+      <p class="mb-1">No calls logged yet</p><small>Add your first call to start tracking</small></div>`;
+    return;
+  }
+  document.getElementById('callsList').innerHTML=calls.map((call,i)=>`
+    <div class="call-item animate__animated animate__fadeIn">
+      <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
+        <div class="d-flex align-items-center gap-2">
+          <div class="call-num">${(c.calls||[]).length-i}</div>
+          <div>
+            <div style="font-weight:700;font-size:.88rem;">${fmtDT(call.date)}</div>
+            <div style="font-size:.77rem;color:var(--text-secondary);">
+              ${call.representative?`Rep: <strong>${esc(call.representative)}</strong>`:''}
+              ${call.referenceNumber?` &middot; Ref: <strong>${esc(call.referenceNumber)}</strong>`:''}
+            </div>
+          </div>
+        </div>
+        <div class="d-flex align-items-center gap-2 flex-shrink-0">
+          ${call.duration?`<span style="font-size:.78rem;color:var(--text-secondary);"><i class="fas fa-clock me-1"></i>${fmtDur(call.duration)}</span>`:''}
+          ${outcomeBadge(call.outcome)}
+          <button class="btn btn-sm" style="background:transparent;border:none;color:var(--text-secondary);padding:.15rem .4rem;"
+            onclick="deleteCall('${call.id}',event)" title="Delete">
+            <i class="fas fa-trash-alt" style="font-size:.78rem;"></i>
+          </button>
+        </div>
+      </div>
+      ${call.notes?`<div style="font-size:.88rem;line-height:1.65;color:var(--text-primary);">${esc(call.notes)}</div>`:''}
+    </div>`).join('');
+}
+
+function refreshCaseStats(c) {
+  const calls=c.calls||[];
+  const outcomes={};
+  calls.forEach(x=>{outcomes[x.outcome]=(outcomes[x.outcome]||0)+1;});
+  const lastCall=calls.length?calls[calls.length-1]:null;
+  document.getElementById('caseStats').innerHTML=`
+    <div class="d-flex flex-column gap-2">
+      <div class="d-flex justify-content-between"><span style="font-size:.8rem;color:var(--text-secondary);">Total Calls</span><span style="font-size:.8rem;font-weight:700;">${calls.length}</span></div>
+      <div class="d-flex justify-content-between"><span style="font-size:.8rem;color:var(--text-secondary);">Total Time</span><span style="font-size:.8rem;font-weight:700;color:var(--accent-light);">${fmtDur(totalTime(c))||'0m'}</span></div>
+      <div class="d-flex justify-content-between"><span style="font-size:.8rem;color:var(--text-secondary);">Last Call</span><span style="font-size:.8rem;font-weight:700;">${lastCall?fmtDate(lastCall.date):'—'}</span></div>
+      ${Object.keys(outcomes).length?`<hr style="border-color:var(--border);margin:.5rem 0;">
+      <div style="font-size:.72rem;color:var(--text-secondary);margin-bottom:.25rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;">Outcomes</div>
+      ${Object.entries(outcomes).map(([k,v])=>`
+        <div class="d-flex justify-content-between">
+          <span style="font-size:.8rem;color:var(--text-secondary);">${esc(k)}</span>
+          <span class="badge" style="background:var(--bg-secondary);color:var(--text-secondary);">${v}</span>
+        </div>`).join('')}`:''}
+    </div>`;
+}
+
+function updateTimerTotal(c) {
+  document.getElementById('timerTotal').textContent='Total case time: '+(fmtDur(totalTime(c))||'0m');
+}
+
+// ════════════════════════════════════════════════════════════
+// TIMER — status changes on start/pause/stop
+// ════════════════════════════════════════════════════════════
+function setCaseStatus(statusVal) {
+  const c=byId(activeCase); if(!c) return;
+  c.status=statusVal; c.updated=new Date().toISOString();
+  save(); refreshDetailBadges(c);
+}
+
+function timerStart() {
+  if(timerRunning) return;
+  timerRunning=true; timerPaused=false;
+  // Status → Active
+  setCaseStatus('active');
+  timerTick=setInterval(()=>{
+    timerSec++;
+    document.getElementById('timerDisplay').textContent=fmtSecs(timerSec);
+  },1000);
+  setTimerBtns(true,false);
+  const b=document.getElementById('timerBadge');
+  b.innerHTML='<span class="timer-pulse"></span>ACTIVE';
+  b.style.cssText='background:rgba(99,102,241,.2);color:#818cf8;';
+}
+
+function timerPause() {
+  if(!timerRunning) return;
+  clearInterval(timerTick); timerRunning=false; timerPaused=true;
+  // Status → Pending
+  setCaseStatus('pending');
+  setTimerBtns(false,true);
+  const b=document.getElementById('timerBadge');
+  b.innerHTML='<i class="fas fa-pause me-1"></i>PAUSED';
+  b.style.cssText='background:rgba(245,158,11,.15);color:#f59e0b;';
+}
+
+function timerStop() {
+  if(!timerRunning && !timerPaused && timerSec===0) return;
+  clearInterval(timerTick);
+  timerRunning=false; timerPaused=false;
+  // Status → Pending
+  setCaseStatus('pending');
+  setTimerBtns(false,false);
+  const b=document.getElementById('timerBadge');
+  b.textContent='IDLE';
+  b.style.cssText='background:var(--bg-secondary);color:var(--text-secondary);';
+  // Open add call modal (timerSec kept for duration pre-fill; saveCall() resets it)
+  openAddCallModal();
+}
+
+function stopTimerSilent() {
+  clearInterval(timerTick); timerSec=0; timerRunning=false; timerPaused=false;
+}
+
+function timerReset() {
+  clearInterval(timerTick);
+  timerSec=0; timerRunning=false; timerPaused=false;
+  document.getElementById('timerDisplay').textContent='00:00:00';
+  setTimerBtns(false,false);
+  const b=document.getElementById('timerBadge');
+  b.textContent='IDLE';
+  b.style.cssText='background:var(--bg-secondary);color:var(--text-secondary);';
+}
+
+function setTimerBtns(running, paused) {
+  const start=document.getElementById('btnStart');
+  const pause=document.getElementById('btnPause');
+  const stop =document.getElementById('btnStop');
+  start.disabled=running;   start.style.opacity=running?'.45':'1';
+  pause.disabled=!running;  pause.style.opacity=running?'1':'.45';
+  stop.disabled=(!running&&!paused); stop.style.opacity=(!running&&!paused)?'.45':'1';
+}
+
+// If user cancels Add Call modal (after timer stop), clear timerSec
+document.addEventListener('DOMContentLoaded',()=>{
+  document.getElementById('mdlAddCall').addEventListener('hidden.bs.modal',()=>{
+    if(timerSec>0) timerReset();
+  });
+});
+
+// ════════════════════════════════════════════════════════════
+// CASE CRUD
+// ════════════════════════════════════════════════════════════
+function openNewCaseModal() {
+  ['ncTitle','ncCompany','ncPhone','ncAccount','ncDesc'].forEach(id=>document.getElementById(id).value='');
+  populatePrioritySelect('ncPriority','medium');
+  populateCategorySelect('ncCategory','Banking');
+  new bootstrap.Modal(document.getElementById('mdlNewCase')).show();
+}
+
+function saveNewCase() {
+  const title=document.getElementById('ncTitle').value.trim();
+  const company=document.getElementById('ncCompany').value.trim();
+  if(!title||!company){toast('Title and Company are required','warning');return;}
+  const now=new Date().toISOString();
+  const nc={
+    id:uid(), caseNumber:caseNum(), title, company,
+    category:document.getElementById('ncCategory').value,
+    priority:document.getElementById('ncPriority').value,
+    status:'open',
+    phone:document.getElementById('ncPhone').value.trim(),
+    accountNumber:document.getElementById('ncAccount').value.trim(),
+    description:document.getElementById('ncDesc').value.trim(),
+    created:now, updated:now, calls:[]
+  };
+  DB.cases.push(nc); save(); refreshAll();
+  bootstrap.Modal.getInstance(document.getElementById('mdlNewCase')).hide();
+  toast(`${nc.caseNumber} created!`,'success');
+}
+
+function editCase() {
+  const c=byId(activeCase); if(!c) return;
+  document.getElementById('ecTitle').value=c.title;
+  document.getElementById('ecCompany').value=c.company;
+  document.getElementById('ecPhone').value=c.phone||'';
+  document.getElementById('ecAccount').value=c.accountNumber||'';
+  document.getElementById('ecDesc').value=c.description||'';
+  populatePrioritySelect('ecPriority',c.priority);
+  populateCategorySelect('ecCategory',c.category);
+  populateStatusSelect('ecStatus',c.status);
+  new bootstrap.Modal(document.getElementById('mdlEditCase')).show();
+}
+
+function saveEditCase() {
+  const c=byId(activeCase); if(!c) return;
+  c.title=document.getElementById('ecTitle').value.trim()||c.title;
+  c.company=document.getElementById('ecCompany').value.trim()||c.company;
+  c.phone=document.getElementById('ecPhone').value.trim();
+  c.accountNumber=document.getElementById('ecAccount').value.trim();
+  c.description=document.getElementById('ecDesc').value.trim();
+  c.priority=document.getElementById('ecPriority').value;
+  c.category=document.getElementById('ecCategory').value;
+  c.status=document.getElementById('ecStatus').value;
+  c.updated=new Date().toISOString();
+  if(c.status==='closed'&&!c.closed) c.closed=c.updated;
+  save(); openCase(activeCase);
+  bootstrap.Modal.getInstance(document.getElementById('mdlEditCase')).hide();
+  toast('Case updated','success');
+}
+
+function toggleStatus() {
+  const c=byId(activeCase); if(!c) return;
+  const statuses=getCfg().statuses;
+  const idx=statuses.findIndex(s=>s.value===c.status);
+  const next=statuses[(idx+1)%statuses.length];
+  c.status=next.value; c.updated=new Date().toISOString();
+  if(c.status==='closed'&&!c.closed) c.closed=c.updated;
+  save(); openCase(activeCase); toast(`Status → ${next.label}`,'info');
+}
+
+function deleteCase() {
+  if(!confirm('Delete this case and all its call logs? This cannot be undone.')) return;
+  DB.cases=DB.cases.filter(c=>c.id!==activeCase);
+  save(); goHome(); toast('Case deleted','info');
+}
+
+// ════════════════════════════════════════════════════════════
+// CALL CRUD
+// ════════════════════════════════════════════════════════════
+function openAddCallModal() {
+  const now=new Date();
+  document.getElementById('callDate').value=
+    new Date(now-now.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  document.getElementById('callDuration').value=timerSec>0?Math.ceil(timerSec/60):'';
+  ['callRep','callRef','callNotes'].forEach(id=>document.getElementById(id).value='');
+  populateOutcomeSelect('callOutcome','resolved');
+  new bootstrap.Modal(document.getElementById('mdlAddCall')).show();
+}
+
+function saveCall() {
+  const c=byId(activeCase); if(!c) return;
+  const mins=parseInt(document.getElementById('callDuration').value)||0;
+  const call={
+    id:uid(),
+    date:new Date(document.getElementById('callDate').value).toISOString(),
+    duration:mins*60+(timerSec||0),
+    representative:document.getElementById('callRep').value.trim(),
+    referenceNumber:document.getElementById('callRef').value.trim(),
+    notes:document.getElementById('callNotes').value.trim(),
+    outcome:document.getElementById('callOutcome').value
+  };
+  if(!c.calls) c.calls=[];
+  c.calls.push(call);
+  c.updated=new Date().toISOString();
+  const hadTimer=timerSec>0;
+  timerReset();
+  save(); renderCalls(c); updateTimerTotal(c); refreshCaseStats(c); renderDetailInfo(c);
+  bootstrap.Modal.getInstance(document.getElementById('mdlAddCall')).hide();
+  toast(hadTimer?`Call logged with ${fmtDur(call.duration)} timer time`:'Call logged!','success');
+}
+
+function deleteCall(callId,event) {
+  event.stopPropagation();
+  if(!confirm('Delete this call entry?')) return;
+  const c=byId(activeCase); if(!c) return;
+  c.calls=(c.calls||[]).filter(x=>x.id!==callId);
+  c.updated=new Date().toISOString();
+  save(); renderCalls(c); updateTimerTotal(c); refreshCaseStats(c);
+  toast('Call removed','info');
+}
+
+// ════════════════════════════════════════════════════════════
+// ADMIN SCREEN
+// ════════════════════════════════════════════════════════════
+const OUTCOME_ICONS=[
+  'fa-check-circle','fa-level-up-alt','fa-phone-square','fa-redo','fa-times-circle',
+  'fa-question-circle','fa-clock','fa-ban','fa-comment-alt','fa-file-alt',
+  'fa-handshake','fa-exclamation-triangle','fa-sync','fa-user-clock'
+];
+
+function switchAdminTab(tab, btn) {
+  adminTab=tab;
+  document.querySelectorAll('.admin-tab-btn').forEach(b=>b.classList.remove('active'));
+  if(btn) btn.classList.add('active');
+  renderAdminTab(tab);
+}
+
+function renderAdminTab(tab) {
+  const cfg=getCfg();
+  const el=document.getElementById('adminContent');
+
+  if(tab==='statuses') {
+    el.innerHTML=`
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div style="font-size:.85rem;color:var(--text-secondary);">
+          Define the status types available for support cases. <strong>active</strong> and <strong>pending</strong> are used by the timer.
+        </div>
+        <button class="btn btn-sm btn-accent ms-3 flex-shrink-0" onclick="openAdminModal('statuses',null)">
+          <i class="fas fa-plus me-1"></i>Add Status
+        </button>
+      </div>
+      <div class="content-card">
+        ${cfg.statuses.map(s=>`
+          <div class="admin-list-item">
+            <div class="color-swatch" style="background:${s.color};"></div>
+            <div class="flex-grow-1">
+              <div style="font-weight:600;font-size:.9rem;">${esc(s.label)}</div>
+              <div style="font-size:.75rem;color:var(--text-secondary);font-family:monospace;">value: ${esc(s.value)}</div>
+            </div>
+            <span class="bstat" style="background:${hexRgba(s.color,.15)};color:${s.color};">${esc(s.label)}</span>
+            <button class="btn btn-sm btn-ghost" onclick="openAdminModal('statuses','${s.id}')"><i class="fas fa-edit"></i></button>
+            <button class="btn btn-sm btn-danger-ghost" onclick="deleteAdminItem('statuses','${s.id}')"><i class="fas fa-trash-alt"></i></button>
+          </div>`).join('')}
+      </div>`;
+
+  } else if(tab==='outcomes') {
+    el.innerHTML=`
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div style="font-size:.85rem;color:var(--text-secondary);">Define the outcome types available when logging a support call.</div>
+        <button class="btn btn-sm btn-accent ms-3 flex-shrink-0" onclick="openAdminModal('outcomes',null)">
+          <i class="fas fa-plus me-1"></i>Add Outcome
+        </button>
+      </div>
+      <div class="content-card">
+        ${cfg.outcomes.map(o=>`
+          <div class="admin-list-item">
+            <div class="color-swatch d-flex align-items-center justify-content-center" style="background:${hexRgba(o.color,.15)};">
+              <i class="fas ${o.icon}" style="color:${o.color};font-size:.85rem;"></i>
+            </div>
+            <div class="flex-grow-1">
+              <div style="font-weight:600;font-size:.9rem;">${esc(o.label)}</div>
+              <div style="font-size:.75rem;color:var(--text-secondary);font-family:monospace;">value: ${esc(o.value)} &nbsp;·&nbsp; icon: ${esc(o.icon)}</div>
+            </div>
+            ${outcomeBadge(o.value)}
+            <button class="btn btn-sm btn-ghost" onclick="openAdminModal('outcomes','${o.id}')"><i class="fas fa-edit"></i></button>
+            <button class="btn btn-sm btn-danger-ghost" onclick="deleteAdminItem('outcomes','${o.id}')"><i class="fas fa-trash-alt"></i></button>
+          </div>`).join('')}
+      </div>`;
+
+  } else if(tab==='categories') {
+    el.innerHTML=`
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div style="font-size:.85rem;color:var(--text-secondary);">Define the categories used to classify support cases.</div>
+        <button class="btn btn-sm btn-accent ms-3 flex-shrink-0" onclick="openAdminModal('categories',null)">
+          <i class="fas fa-plus me-1"></i>Add Category
+        </button>
+      </div>
+      <div class="content-card">
+        ${cfg.categories.map(c=>`
+          <div class="admin-list-item">
+            <div class="co-avatar" style="background:${avatarColor(c.label)};">${c.label[0].toUpperCase()}</div>
+            <div class="flex-grow-1" style="font-weight:600;font-size:.9rem;">${esc(c.label)}</div>
+            <span class="bstat" style="background:${hexRgba(avatarColor(c.label),.15)};color:${avatarColor(c.label)};">${esc(c.label)}</span>
+            <button class="btn btn-sm btn-ghost" onclick="openAdminModal('categories','${c.id}')"><i class="fas fa-edit"></i></button>
+            <button class="btn btn-sm btn-danger-ghost" onclick="deleteAdminItem('categories','${c.id}')"><i class="fas fa-trash-alt"></i></button>
+          </div>`).join('')}
+      </div>`;
+
+  } else if(tab==='priorities') {
+    el.innerHTML=`
+      <div class="mb-3" style="font-size:.85rem;color:var(--text-secondary);">
+        Priorities are fixed (Critical / High / Medium / Low). Customize their colors here — changes apply immediately across the entire app.
+      </div>
+      <div class="content-card">
+        ${cfg.priorities.map(p=>`
+          <div class="priority-row">
+            <div class="d-flex align-items-center gap-3">
+              <div class="color-swatch" style="background:${p.color};"></div>
+              <div>
+                <div style="font-weight:700;font-size:.95rem;">${esc(p.label)}</div>
+                <div style="font-size:.75rem;color:var(--text-secondary);font-family:monospace;">${p.value}</div>
+              </div>
+              ${prioBadge(p.value)}
+            </div>
+            <div class="d-flex align-items-center gap-3">
+              <span id="prioHex_${p.value}" style="font-family:monospace;font-size:.82rem;color:var(--text-secondary);">${p.color}</span>
+              <input type="color" class="form-control form-control-color" value="${p.color}"
+                style="width:48px;height:40px;cursor:pointer;"
+                oninput="updatePrioHex('${p.value}',this.value)"
+                onchange="savePriorityColor('${p.value}',this.value)"
+                title="Pick color for ${esc(p.label)}">
+            </div>
+          </div>`).join('')}
+      </div>
+      <div class="mt-3 p-2 rounded d-flex align-items-center gap-2" style="background:var(--bg-secondary);font-size:.78rem;color:var(--text-secondary);">
+        <i class="fas fa-info-circle"></i> Colors update in real-time. Move to another screen to see the full effect on badges.
+      </div>`;
+
+  } else if(tab==='themes') {
+    renderThemesTab();
+  }
+}
+
+function updatePrioHex(value, color) {
+  const el=document.getElementById('prioHex_'+value);
+  if(el) el.textContent=color;
+}
+function savePriorityColor(value, color) {
+  const p=getCfg().priorities.find(x=>x.value===value);
+  if(p){ p.color=color; save(); renderAdminTab('priorities'); toast(`${value} color saved`,'success'); }
+}
+
+// ── Admin modal ──
+function openAdminModal(type, id) {
+  adminCtx={type,id};
+  const cfg=getCfg();
+  const isEdit=!!id;
+  let item=null;
+  if(isEdit){
+    if(type==='statuses')   item=cfg.statuses.find(x=>x.id===id);
+    else if(type==='outcomes')  item=cfg.outcomes.find(x=>x.id===id);
+    else if(type==='categories') item=cfg.categories.find(x=>x.id===id);
+  }
+  const typeLabel={statuses:'Status',outcomes:'Outcome',categories:'Category'}[type]||type;
+  document.getElementById('adminModalTitle').innerHTML=
+    `<i class="fas ${isEdit?'fa-edit':'fa-plus-circle'} me-2" style="color:var(--accent);"></i>${isEdit?'Edit':'Add'} ${typeLabel}`;
+
+  let body='';
+  if(type==='statuses'){
+    body=`
+      <div class="mb-3">
+        <label class="form-label">Label <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="ai_label" value="${esc(item?.label||'')}" placeholder="e.g. In Progress">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Value (internal key) <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="ai_value" value="${esc(item?.value||'')}"
+          placeholder="e.g. in-progress" ${isEdit?'readonly style="opacity:.6;"':''}
+          oninput="if(!${isEdit}) document.getElementById('ai_value').value=this.value.toLowerCase().replace(/\\s+/g,'-')">
+        ${isEdit?`<div class="form-text" style="color:var(--text-secondary);">Value cannot be changed — it is stored in existing cases.</div>`:'<div class="form-text" style="color:var(--text-secondary);">Auto-generated from label. Lowercase, hyphens only.</div>'}
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Badge Color</label>
+        <div class="d-flex align-items-center gap-3">
+          <input type="color" class="form-control form-control-color" id="ai_color" value="${item?.color||'#6366f1'}"
+            style="width:52px;height:40px;" oninput="document.getElementById('ai_colorhex').textContent=this.value">
+          <span id="ai_colorhex" style="font-family:monospace;font-size:.85rem;">${item?.color||'#6366f1'}</span>
+          <span class="bstat" id="ai_preview" style="background:${hexRgba(item?.color||'#6366f1',.15)};color:${item?.color||'#6366f1'};">${esc(item?.label||'Preview')}</span>
+        </div>
+      </div>`;
+  } else if(type==='outcomes'){
+    body=`
+      <div class="mb-3">
+        <label class="form-label">Label <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="ai_label" value="${esc(item?.label||'')}" placeholder="e.g. Partially Resolved">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Value (internal key) <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="ai_value" value="${esc(item?.value||'')}"
+          placeholder="e.g. partial-resolved" ${isEdit?'readonly style="opacity:.6;"':''}
+          oninput="if(!${isEdit}) document.getElementById('ai_value').value=this.value.toLowerCase().replace(/\\s+/g,'-')">
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Icon</label>
+        <div class="d-flex align-items-center gap-3">
+          <div class="icon-preview" id="ai_iconpreview"><i class="fas ${item?.icon||'fa-circle'} " id="ai_iconpreviewi"></i></div>
+          <select class="form-select" id="ai_icon" onchange="document.getElementById('ai_iconpreviewi').className='fas '+this.value">
+            ${OUTCOME_ICONS.map(ic=>`<option value="${ic}" ${ic===(item?.icon||'fa-circle')?'selected':''}>${ic.replace('fa-','')}</option>`).join('')}
+          </select>
+        </div>
+      </div>
+      <div class="mb-3">
+        <label class="form-label">Badge Color</label>
+        <div class="d-flex align-items-center gap-3">
+          <input type="color" class="form-control form-control-color" id="ai_color" value="${item?.color||'#6366f1'}"
+            style="width:52px;height:40px;" oninput="document.getElementById('ai_colorhex').textContent=this.value">
+          <span id="ai_colorhex" style="font-family:monospace;font-size:.85rem;">${item?.color||'#6366f1'}</span>
+        </div>
+      </div>`;
+  } else if(type==='categories'){
+    body=`
+      <div class="mb-3">
+        <label class="form-label">Category Name <span class="text-danger">*</span></label>
+        <input type="text" class="form-control" id="ai_label" value="${esc(item?.label||'')}" placeholder="e.g. Financial Services">
+      </div>`;
+  }
+
+  document.getElementById('adminModalBody').innerHTML=body;
+
+  // Auto-fill value from label for new items
+  if(!isEdit && (type==='statuses'||type==='outcomes')){
+    const labelEl=document.getElementById('ai_label');
+    const valueEl=document.getElementById('ai_value');
+    if(labelEl&&valueEl){
+      labelEl.addEventListener('input',()=>{
+        valueEl.value=labelEl.value.toLowerCase().trim().replace(/\s+/g,'-').replace(/[^a-z0-9-]/g,'');
+      });
+    }
+  }
+
+  new bootstrap.Modal(document.getElementById('mdlAdminItem')).show();
+}
+
+function saveAdminItem() {
+  const cfg=getCfg();
+  const {type,id}=adminCtx;
+  const isEdit=!!id;
+
+  if(type==='statuses'){
+    const label=document.getElementById('ai_label').value.trim();
+    const value=isEdit
+      ? getCfg().statuses.find(x=>x.id===id)?.value
+      : document.getElementById('ai_value').value.trim().toLowerCase().replace(/\s+/g,'-');
+    const color=document.getElementById('ai_color').value;
+    if(!label||!value){toast('Label and Value are required','warning');return;}
+    if(isEdit){
+      const s=cfg.statuses.find(x=>x.id===id);
+      if(s){s.label=label;s.color=color;}
+    } else {
+      if(cfg.statuses.some(x=>x.value===value)){toast('A status with that value already exists','warning');return;}
+      cfg.statuses.push({id:uid(),value,label,color});
+    }
+
+  } else if(type==='outcomes'){
+    const label=document.getElementById('ai_label').value.trim();
+    const value=isEdit
+      ? getCfg().outcomes.find(x=>x.id===id)?.value
+      : document.getElementById('ai_value').value.trim().toLowerCase().replace(/\s+/g,'-');
+    const color=document.getElementById('ai_color').value;
+    const icon=document.getElementById('ai_icon').value;
+    if(!label||!value){toast('Label and Value are required','warning');return;}
+    if(isEdit){
+      const o=cfg.outcomes.find(x=>x.id===id);
+      if(o){o.label=label;o.color=color;o.icon=icon;}
+    } else {
+      if(cfg.outcomes.some(x=>x.value===value)){toast('An outcome with that value already exists','warning');return;}
+      cfg.outcomes.push({id:uid(),value,label,icon,color});
+    }
+
+  } else if(type==='categories'){
+    const label=document.getElementById('ai_label').value.trim();
+    if(!label){toast('Category name is required','warning');return;}
+    if(isEdit){
+      const c=cfg.categories.find(x=>x.id===id);
+      if(c) c.label=label;
+    } else {
+      if(cfg.categories.some(x=>x.label.toLowerCase()===label.toLowerCase())){toast('Category already exists','warning');return;}
+      cfg.categories.push({id:uid(),label});
+    }
+  }
+
+  save();
+  renderAdminTab(type);
+  bootstrap.Modal.getInstance(document.getElementById('mdlAdminItem')).hide();
+  toast((isEdit?'Updated':'Added')+' successfully','success');
+}
+
+function deleteAdminItem(type, id) {
+  const cfg=getCfg();
+  let label='';
+  if(type==='statuses')    label=cfg.statuses.find(x=>x.id===id)?.label||'item';
+  else if(type==='outcomes')   label=cfg.outcomes.find(x=>x.id===id)?.label||'item';
+  else if(type==='categories') label=cfg.categories.find(x=>x.id===id)?.label||'item';
+  if(!confirm(`Delete "${label}"? Existing cases/calls that use this value will still display it, just without custom styling.`)) return;
+  if(type==='statuses')    cfg.statuses=cfg.statuses.filter(x=>x.id!==id);
+  else if(type==='outcomes')   cfg.outcomes=cfg.outcomes.filter(x=>x.id!==id);
+  else if(type==='categories') cfg.categories=cfg.categories.filter(x=>x.id!==id);
+  save(); renderAdminTab(type); toast('Deleted','info');
+}
+
+// ════════════════════════════════════════════════════════════
+// THEMES CATALOG + RENDERER
+// ════════════════════════════════════════════════════════════
+const THEMES = [
+  {
+    id: 'dark',
+    name: 'Default',
+    tagline: 'Dark Slate · Indigo Accents',
+    desc: 'The original dark theme with deep slate backgrounds and indigo/purple accents.',
+    bar: 'linear-gradient(90deg,#6366f1,#8b5cf6,#ec4899,#f59e0b)',
+    bg: '#0f172a', card: '#1e293b', hover: '#273450',
+    accent: '#6366f1', accentL: '#818cf8',
+    text: '#e2e8f0', textSub: '#94a3b8', border: '#334155',
+    swatches: ['#0f172a','#1e293b','#6366f1','#818cf8','#94a3b8','#e2e8f0']
+  },
+  {
+    id: 'aston-martin',
+    name: 'Aston Martin',
+    tagline: 'British Racing Green · Chrome Silver',
+    desc: 'Inspired by the legendary British sports car marque — deep racing green with silver chrome accents.',
+    bar: 'linear-gradient(90deg,#002B15,#005A2E,#00A855,#2DD47A,#A8B8B0)',
+    bg: '#071510', card: '#0E2419', hover: '#163320',
+    accent: '#00A855', accentL: '#2DD47A',
+    text: '#EAF5EF', textSub: '#6FA885', border: '#1B4530',
+    swatches: ['#071510','#0E2419','#00A855','#2DD47A','#A8B8B0','#EAF5EF']
+  }
+];
+
+function renderThemesTab() {
+  const el = document.getElementById('adminContent');
+  const cur = document.documentElement.getAttribute('data-theme') || 'dark';
+
+  el.innerHTML = `
+    <p style="font-size:.85rem;color:var(--text-secondary);margin-bottom:1.25rem;">
+      Choose a visual theme for the application. The <strong>Default</strong> theme also supports a light mode
+      via the <i class="fas fa-moon" style="color:var(--accent);"></i> toggle in the navbar.
+    </p>
+    <div class="row g-4">
+      ${THEMES.map(t => {
+        // "Default" is active for both 'dark' and 'light' system states
+        const isActive = t.id === 'dark'
+          ? (cur === 'dark' || cur === 'light')
+          : cur === t.id;
+
+        const badgeBg  = `rgba(${parseInt(t.accent.slice(1,3),16)},${parseInt(t.accent.slice(3,5),16)},${parseInt(t.accent.slice(5,7),16)},.2)`;
+
+        return `
+        <div class="col-md-6">
+          <div class="theme-card ${isActive?'is-active':''}"
+               onclick="applyThemeFromAdmin('${t.id}')"
+               style="border:2px solid ${isActive?t.accent:t.border};background:${t.bg};">
+            <!-- Gradient accent bar -->
+            <div class="tc-bar" style="background:${t.bar};"></div>
+
+            <!-- Mini UI preview -->
+            <div class="tc-body" style="background:${t.bg};">
+              <!-- Fake navbar -->
+              <div style="display:flex;align-items:center;gap:.5rem;padding:.45rem .6rem;background:${t.card};border-radius:10px;margin-bottom:.6rem;border:1px solid ${t.border};">
+                <div style="width:22px;height:22px;border-radius:6px;background:linear-gradient(135deg,${t.accent},${t.accentL});"></div>
+                <div style="flex:1;height:7px;border-radius:4px;background:${t.border};opacity:.6;"></div>
+                <div style="width:48px;height:18px;border-radius:9px;background:${t.accent};opacity:.85;"></div>
+              </div>
+              <!-- Fake stat cards -->
+              <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:.4rem;margin-bottom:.6rem;">
+                ${[t.accent,'#C9991A','#94a3b8'].map((c,i)=>`
+                  <div style="background:${t.card};border:1px solid ${t.border};border-radius:8px;padding:.45rem .55rem;border-left:3px solid ${c};">
+                    <div style="height:5px;width:55%;border-radius:3px;background:${t.textSub};opacity:.35;margin-bottom:.3rem;"></div>
+                    <div style="height:12px;width:38%;border-radius:3px;background:${t.text};opacity:.5;"></div>
+                  </div>`).join('')}
+              </div>
+              <!-- Fake rows -->
+              <div style="background:${t.card};border:1px solid ${t.border};border-radius:8px;overflow:hidden;">
+                ${[0,1,2].map(i=>`
+                  <div style="display:flex;align-items:center;gap:.5rem;padding:.38rem .6rem;${i<2?'border-bottom:1px solid '+t.border:''}">
+                    <div style="width:18px;height:18px;border-radius:5px;background:${t.accent};opacity:.65;flex-shrink:0;"></div>
+                    <div style="flex:1;height:5px;border-radius:3px;background:${t.textSub};opacity:.25;"></div>
+                    <div style="width:34px;height:14px;border-radius:10px;background:${t.accent};opacity:.3;"></div>
+                  </div>`).join('')}
+              </div>
+            </div>
+
+            <!-- Footer: name + swatches + status -->
+            <div class="tc-foot" style="background:${t.card};border-top:1px solid ${t.border};">
+              <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.6rem;">
+                <div>
+                  <div style="font-weight:800;font-size:1rem;color:${t.text};">${t.name}</div>
+                  <div style="font-size:.73rem;color:${t.textSub};margin-top:.15rem;">${t.tagline}</div>
+                </div>
+                ${isActive
+                  ? `<span style="padding:.3em .85em;border-radius:20px;font-size:.72rem;font-weight:700;background:${badgeBg};color:${t.accent};flex-shrink:0;"><i class="fas fa-check me-1"></i>Active</span>`
+                  : `<button onclick="event.stopPropagation();applyThemeFromAdmin('${t.id}')"
+                       style="padding:.3rem .9rem;border-radius:8px;border:1.5px solid ${t.accent};background:transparent;color:${t.accent};font-size:.78rem;font-weight:700;cursor:pointer;flex-shrink:0;transition:background .15s;"
+                       onmouseover="this.style.background='${badgeBg}'" onmouseout="this.style.background='transparent'">
+                       Apply
+                     </button>`}
+              </div>
+              <p style="font-size:.76rem;color:${t.textSub};margin:0 0 .65rem;">${t.desc}</p>
+              <!-- Palette swatches -->
+              <div style="display:flex;gap:.35rem;">
+                ${t.swatches.map(sw=>`<div class="tc-swatch" title="${sw}" style="background:${sw};border:1px solid ${t.border};"></div>`).join('')}
+              </div>
+            </div>
+          </div>
+        </div>`;
+      }).join('')}
+    </div>`;
+}
+
+function applyThemeFromAdmin(name) {
+  applyTheme(name);
+  toast('Theme applied — ' + (THEMES.find(t=>t.id===name)?.name||name), 'success');
+}
+
+// ════════════════════════════════════════════════════════════
+// SECURITY & USER MANAGEMENT
+// ════════════════════════════════════════════════════════════
+const PERMISSIONS = [
+  { key:'viewCases',      label:'View Cases',          icon:'fa-eye' },
+  { key:'createCases',    label:'Create Cases',        icon:'fa-plus-circle' },
+  { key:'editCases',      label:'Edit Cases',          icon:'fa-edit' },
+  { key:'deleteCases',    label:'Delete Cases',        icon:'fa-trash-alt' },
+  { key:'logCalls',       label:'Log Calls',           icon:'fa-phone-alt' },
+  { key:'deleteCalls',    label:'Delete Calls',        icon:'fa-phone-slash' },
+  { key:'exportData',     label:'Export Data',         icon:'fa-download' },
+  { key:'accessAdmin',    label:'Access Admin Panel',  icon:'fa-cog' },
+  { key:'manageSecurity', label:'Manage Security',     icon:'fa-shield-alt' }
+];
+
+let currentUser = null;
+let editingUserId = null;
+
+function defaultSecurity() {
+  return {
+    loginEnabled: false,
+    users: [{
+      id: uid(), username:'admin', password:'',
+      displayName:'Administrator', email:'', phone:'',
+      title:'System Administrator', department:'',
+      group:'admin', avatar:null, isDefault:true
+    }],
+    groups:[
+      {
+        id:'admin', name:'Administrator',
+        description:'Full access — all permissions granted', editable:false,
+        permissions:{ viewCases:true, createCases:true, editCases:true, deleteCases:true,
+          logCalls:true, deleteCalls:true, exportData:true, accessAdmin:true, manageSecurity:true }
+      },
+      {
+        id:'user', name:'Standard User',
+        description:'Can view and create cases and log calls', editable:true,
+        permissions:{ viewCases:true, createCases:true, editCases:false, deleteCases:false,
+          logCalls:true, deleteCalls:false, exportData:false, accessAdmin:false, manageSecurity:false }
+      }
+    ]
+  };
+}
+
+function getSec() {
+  if (!DB.security) DB.security = defaultSecurity();
+  return DB.security;
+}
+
+// ── Auth ──
+function checkAuth() {
+  const sec = getSec();
+  if (!sec.loginEnabled) {
+    currentUser = sec.users[0] || null;
+    updateNavUser(); return;
+  }
+  const sessId = sessionStorage.getItem('stp_uid');
+  if (sessId) {
+    currentUser = sec.users.find(u=>u.id===sessId) || null;
+    if (currentUser) { updateNavUser(); return; }
+  }
+  showLoginOverlay();
+}
+
+function showLoginOverlay() {
+  document.getElementById('loginOverlay').classList.add('visible');
+  setTimeout(()=>document.getElementById('loginUser')?.focus(), 300);
+}
+function hideLoginOverlay() { document.getElementById('loginOverlay').classList.remove('visible'); }
+
+function doLogin() {
+  const username = document.getElementById('loginUser').value.trim();
+  const password = document.getElementById('loginPass').value;
+  const user = getSec().users.find(u=>u.username===username && u.password===password);
+  if (!user) { document.getElementById('loginError').style.display='block'; return; }
+  currentUser = user;
+  sessionStorage.setItem('stp_uid', user.id);
+  document.getElementById('loginError').style.display = 'none';
+  document.getElementById('loginUser').value = '';
+  document.getElementById('loginPass').value = '';
+  hideLoginOverlay(); updateNavUser();
+  toast('Welcome, '+user.displayName+'!', 'success');
+}
+
+function doLogout() {
+  sessionStorage.removeItem('stp_uid'); currentUser = null;
+  goHome(); showLoginOverlay();
+}
+
+function updateNavUser() {
+  if (!currentUser) return;
+  const initials = (currentUser.displayName||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  const img = document.getElementById('navUserImg');
+  const ini = document.getElementById('navUserInitials');
+  if (currentUser.avatar) {
+    img.src = currentUser.avatar; img.style.display='block';
+    if(ini) ini.style.display='none';
+  } else {
+    img.style.display='none';
+    if(ini){ ini.textContent=initials; ini.style.display='flex'; }
+  }
+  const nameEl=document.getElementById('navUserName');
+  const roleEl=document.getElementById('navUserGroup');
+  if(nameEl) nameEl.textContent=currentUser.displayName;
+  if(roleEl){ const g=getSec().groups.find(x=>x.id===currentUser.group); roleEl.textContent=g?.name||currentUser.group; }
+  const logoutRow=document.getElementById('navLogoutRow');
+  if(logoutRow) logoutRow.style.display=getSec().loginEnabled?'block':'none';
+}
+
+// ── Profile ──
+function showProfile() { renderProfile(); showView('viewProfile'); }
+
+function renderProfile() {
+  const sec = getSec();
+  const u = currentUser || sec.users[0];
+  const initials = (u.displayName||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+  const loginOn = sec.loginEnabled;
+  const grpOpts = sec.groups.map(g=>`<option value="${g.id}" ${g.id===u.group?'selected':''}>${esc(g.name)}</option>`).join('');
+  const primaryGrp = sec.groups.find(g=>g.id===u.group)?.name||u.group;
+
+  document.getElementById('profileView').innerHTML = `
+    <div class="d-flex align-items-center gap-3 mb-4">
+      <button class="btn btn-sm btn-ghost" onclick="goHome()"><i class="fas fa-arrow-left me-1"></i>Back</button>
+      <h5 class="mb-0 fw-bold"><i class="fas fa-user-circle me-2" style="color:var(--accent);"></i>User Profile</h5>
+    </div>
+    <div class="row g-3">
+      <!-- Avatar card -->
+      <div class="col-lg-3">
+        <div class="content-card p-3 text-center">
+          <div style="position:relative;width:140px;height:140px;margin:0 auto 1rem;">
+            <div style="width:140px;height:140px;border-radius:50%;overflow:hidden;border:3px solid var(--accent);">
+              ${u.avatar
+                ? `<img src="${u.avatar}" style="width:100%;height:100%;object-fit:cover;">`
+                : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:3rem;font-weight:700;color:#fff;background:linear-gradient(135deg,var(--accent),var(--accent-light));">${initials}</div>`}
+            </div>
+            <label style="position:absolute;bottom:4px;right:4px;width:32px;height:32px;border-radius:50%;background:var(--accent);display:flex;align-items:center;justify-content:center;cursor:pointer;border:2px solid var(--bg-card);transition:transform .15s;" onmouseover="this.style.transform='scale(1.12)'" onmouseout="this.style.transform='scale(1)'">
+              <i class="fas fa-camera" style="color:#fff;font-size:.7rem;pointer-events:none;"></i>
+              <input type="file" accept="image/*" style="display:none;" onchange="handleAvatarUpload(event)">
+            </label>
+          </div>
+          <div style="font-weight:700;font-size:1rem;">${esc(u.displayName||'—')}</div>
+          <div style="font-size:.8rem;color:var(--text-secondary);">${esc(primaryGrp)}</div>
+          ${u.isDefault?`<div class="mt-2"><span class="bstat" style="background:rgba(99,102,241,.15);color:#818cf8;"><i class="fas fa-crown me-1"></i>Primary Admin</span></div>`:''}
+          <button class="btn btn-sm btn-accent w-100 mt-3" onclick="saveProfile()"><i class="fas fa-save me-1"></i>Save Profile</button>
+        </div>
+      </div>
+
+      <!-- Fields -->
+      <div class="col-lg-9">
+        <div class="content-card p-3 mb-3">
+          <h6 class="fw-bold mb-3"><i class="fas fa-id-card me-2" style="color:var(--accent);"></i>Personal Information</h6>
+          <div class="row g-3">
+            <div class="col-md-6"><label class="form-label">Display Name</label><input type="text" class="form-control" id="profDisplayName" value="${esc(u.displayName||'')}"></div>
+            <div class="col-md-6"><label class="form-label">Email Address</label><input type="email" class="form-control" id="profEmail" value="${esc(u.email||'')}"></div>
+            <div class="col-md-6"><label class="form-label">Phone Number</label><input type="text" class="form-control" id="profPhone" value="${esc(u.phone||'')}"></div>
+            <div class="col-md-6"><label class="form-label">Job Title</label><input type="text" class="form-control" id="profTitle" value="${esc(u.title||'')}"></div>
+            <div class="col-md-6"><label class="form-label">Department</label><input type="text" class="form-control" id="profDept" value="${esc(u.department||'')}"></div>
+            <div class="col-md-6">
+              <label class="form-label">Security Group</label>
+              <select class="form-select" id="profGroup" ${u.isDefault?'disabled title="Primary admin group cannot be changed"':''}>${grpOpts}</select>
+              ${u.isDefault?'<div class="form-text" style="color:var(--text-secondary);">Primary admin group is fixed.</div>':''}
+            </div>
+          </div>
+        </div>
+
+        <div class="content-card p-3">
+          <h6 class="fw-bold mb-2"><i class="fas fa-key me-2" style="color:var(--accent);"></i>Login Credentials</h6>
+          <div class="p-2 mb-3 rounded d-flex align-items-start gap-2"
+               style="background:${loginOn?'rgba(245,158,11,.1)':'rgba(16,185,129,.08)'};border:1px solid ${loginOn?'rgba(245,158,11,.3)':'rgba(16,185,129,.2)'};">
+            <i class="fas ${loginOn?'fa-exclamation-triangle':'fa-info-circle'} mt-1 flex-shrink-0" style="color:${loginOn?'#f59e0b':'#10b981'};font-size:.85rem;"></i>
+            <div style="font-size:.82rem;color:var(--text-secondary);">
+              ${loginOn
+                ? 'Login is <strong style="color:var(--text-primary);">enabled</strong>. These credentials are required to access SupportTrack Pro.'
+                : 'Login is currently <strong style="color:var(--text-primary);">disabled</strong> — credentials are not required to open the app. <a href="#" onclick="showSecurity()" style="color:var(--accent);">Enable login on the Security Settings page.</a>'}
+            </div>
+          </div>
+          <div class="row g-3">
+            <div class="col-md-6">
+              <label class="form-label">Username</label>
+              <input type="text" class="form-control" id="profUsername" value="${esc(u.username||'')}" autocomplete="off">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">New Password</label>
+              <div class="input-group">
+                <input type="password" class="form-control" id="profPassword"
+                       placeholder="${u.password?'Change password…':'Set a password…'}" autocomplete="new-password">
+                <button class="btn btn-ghost pass-toggle" type="button" onclick="togglePassVis('profPassword',this)"><i class="fas fa-eye"></i></button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>`;
+}
+
+function handleAvatarUpload(e) {
+  const file=e.target.files[0]; if(!file) return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    const u=currentUser||getSec().users[0];
+    u.avatar=ev.target.result; save(); updateNavUser(); renderProfile();
+    toast('Profile photo updated','success');
+  };
+  r.readAsDataURL(file);
+}
+
+function saveProfile() {
+  const u=currentUser||getSec().users[0];
+  u.displayName = document.getElementById('profDisplayName').value.trim()||u.displayName;
+  u.email       = document.getElementById('profEmail').value.trim();
+  u.phone       = document.getElementById('profPhone').value.trim();
+  u.title       = document.getElementById('profTitle').value.trim();
+  u.department  = document.getElementById('profDept').value.trim();
+  if (!u.isDefault) u.group = document.getElementById('profGroup').value;
+  u.username    = document.getElementById('profUsername').value.trim()||u.username;
+  const pw=document.getElementById('profPassword').value;
+  if(pw) u.password=pw;
+  save(); updateNavUser(); renderProfile();
+  toast('Profile saved!','success');
+}
+
+function togglePassVis(inputId, btn) {
+  const inp=document.getElementById(inputId);
+  const show=inp.type==='password';
+  inp.type=show?'text':'password';
+  btn.querySelector('i').className=show?'fas fa-eye-slash':'fas fa-eye';
+}
+
+// ── Security Settings ──
+function showSecurity() { renderSecurity(); showView('viewSecurity'); }
+
+function renderSecurity() {
+  const sec=getSec();
+  document.getElementById('securityView').innerHTML=`
+    <div class="d-flex align-items-center gap-3 mb-4">
+      <button class="btn btn-sm btn-ghost" onclick="goHome()"><i class="fas fa-arrow-left me-1"></i>Back</button>
+      <h5 class="mb-0 fw-bold"><i class="fas fa-shield-alt me-2" style="color:var(--accent);"></i>Security Settings</h5>
+    </div>
+
+    <!-- Login toggle card -->
+    <div class="content-card mb-3">
+      <div class="p-3 pb-2">
+        <div class="d-flex justify-content-between align-items-start gap-3">
+          <div>
+            <h6 class="fw-bold mb-1"><i class="fas fa-lock me-2" style="color:var(--accent);"></i>Login Screen</h6>
+            <p class="mb-0" style="font-size:.85rem;color:var(--text-secondary);">
+              When enabled, users must authenticate with a username and password before accessing SupportTrack Pro.
+              The login screen appears each time the application is opened in a new browser tab or window.
+            </p>
+          </div>
+          <div class="flex-shrink-0 pt-1">
+            <div class="form-check form-switch" style="transform:scale(1.35);transform-origin:right center;">
+              <input class="form-check-input" type="checkbox" id="loginToggle" role="switch"
+                     ${sec.loginEnabled?'checked':''} onchange="toggleLoginEnabled(this.checked)" style="cursor:pointer;">
+            </div>
+          </div>
+        </div>
+        <div class="mt-3 p-2 rounded" style="background:${sec.loginEnabled?'rgba(239,68,68,.08)':'rgba(16,185,129,.08)'};border:1px solid ${sec.loginEnabled?'rgba(239,68,68,.2)':'rgba(16,185,129,.2)'};">
+          <span style="font-size:.82rem;font-weight:700;color:${sec.loginEnabled?'#ef4444':'#10b981'};">
+            <i class="fas ${sec.loginEnabled?'fa-lock':'fa-lock-open'} me-1"></i>
+            Login is <strong>${sec.loginEnabled?'ENABLED':'DISABLED'}</strong>
+          </span>
+          <span style="font-size:.8rem;color:var(--text-secondary);margin-left:.4rem;">
+            ${sec.loginEnabled?'— Users must sign in each session.':'— App opens without authentication.'}
+          </span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Users -->
+    <div class="content-card mb-4">
+      <div class="d-flex justify-content-between align-items-center p-3" style="border-bottom:1px solid var(--border);">
+        <h6 class="mb-0 fw-bold">
+          <i class="fas fa-users me-2" style="color:var(--accent);"></i>Users
+          <span class="badge ms-1" style="background:var(--bg-secondary);color:var(--text-secondary);">${sec.users.length}</span>
+        </h6>
+        <button class="btn btn-sm btn-accent" onclick="openAddUserModal()"><i class="fas fa-user-plus me-1"></i>Add User</button>
+      </div>
+      <div class="p-0">
+        <table class="table mb-0" style="color:var(--text-primary);border-color:var(--border);">
+          <thead>
+            <tr style="background:var(--bg-secondary);">
+              <th style="padding:.65rem 1rem;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);border:none;">User</th>
+              <th style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);border:none;">Username</th>
+              <th style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);border:none;">Group</th>
+              <th style="font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--text-secondary);border:none;width:120px;"></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${sec.users.map(u=>{
+              const grp=sec.groups.find(g=>g.id===u.group)||{name:u.group};
+              const ini=(u.displayName||'?').split(' ').slice(0,2).map(w=>w[0]).join('').toUpperCase();
+              return `<tr style="border-color:var(--border);">
+                <td style="padding:.75rem 1rem;">
+                  <div class="d-flex align-items-center gap-2">
+                    <div style="width:36px;height:36px;border-radius:50%;overflow:hidden;background:linear-gradient(135deg,var(--accent),var(--accent-light));display:flex;align-items:center;justify-content:center;font-size:.8rem;font-weight:700;color:#fff;flex-shrink:0;">
+                      ${u.avatar?`<img src="${u.avatar}" style="width:100%;height:100%;object-fit:cover;">`:`<span>${ini}</span>`}
+                    </div>
+                    <div>
+                      <div style="font-weight:600;font-size:.88rem;">${esc(u.displayName)}</div>
+                      <div style="font-size:.73rem;color:var(--text-secondary);">${esc(u.email||'—')}</div>
+                    </div>
+                  </div>
+                </td>
+                <td style="font-family:monospace;font-size:.84rem;vertical-align:middle;">${esc(u.username)}</td>
+                <td style="vertical-align:middle;"><span class="bstat" style="background:rgba(99,102,241,.12);color:#818cf8;">${esc(grp.name)}</span></td>
+                <td style="vertical-align:middle;text-align:right;padding-right:1rem;">
+                  ${u.isDefault
+                    ? `<span style="font-size:.72rem;color:var(--text-secondary);"><i class="fas fa-crown me-1" style="color:#f59e0b;"></i>Primary Admin</span>`
+                    : `<button class="btn btn-sm btn-ghost me-1" onclick="openEditUserModal('${u.id}')"><i class="fas fa-edit"></i></button>
+                       <button class="btn btn-sm btn-danger-ghost" onclick="deleteUser('${u.id}')"><i class="fas fa-trash-alt"></i></button>`}
+                </td>
+              </tr>`;
+            }).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- Groups & Permissions -->
+    <h6 class="fw-bold mb-3"><i class="fas fa-layer-group me-2" style="color:var(--accent);"></i>Groups &amp; Permissions</h6>
+    <div class="row g-3">
+      ${sec.groups.map(g=>renderGroupCard(g,sec)).join('')}
+    </div>`;
+}
+
+function renderGroupCard(g, sec) {
+  const isAdmin=g.id==='admin';
+  const acColor=isAdmin?'#818cf8':'#10b981';
+  const memberCount=sec.users.filter(u=>u.group===g.id).length;
+  return `
+    <div class="col-md-6">
+      <div class="content-card h-100">
+        <div style="padding:1rem 1.25rem;border-bottom:1px solid var(--border);background:linear-gradient(135deg,var(--bg-secondary),var(--bg-card));">
+          <div class="d-flex justify-content-between align-items-start">
+            <div>
+              <h6 class="fw-bold mb-1">
+                <i class="fas ${isAdmin?'fa-crown':'fa-user'} me-2" style="color:${acColor};"></i>${esc(g.name)}
+              </h6>
+              <div style="font-size:.78rem;color:var(--text-secondary);">${esc(g.description)}</div>
+            </div>
+            <span class="bstat" style="background:rgba(${isAdmin?'99,102,241':'16,185,129'},.12);color:${acColor};white-space:nowrap;">${memberCount} member${memberCount!==1?'s':''}</span>
+          </div>
+        </div>
+        <div class="p-3">
+          <div style="font-size:.7rem;text-transform:uppercase;letter-spacing:.07em;font-weight:700;color:var(--text-secondary);margin-bottom:.75rem;">Permissions</div>
+          ${PERMISSIONS.map(p=>{
+            const on=g.permissions[p.key]!==false;
+            const dis=!g.editable;
+            return `<div class="perm-row">
+              <div class="d-flex align-items-center gap-2">
+                <i class="fas ${p.icon}" style="width:16px;text-align:center;font-size:.8rem;color:${on?acColor:'var(--text-secondary)'};"></i>
+                <span style="font-size:.84rem;color:${on?'var(--text-primary)':'var(--text-secondary)'};">${p.label}</span>
+              </div>
+              <div class="form-check form-switch mb-0" style="margin-left:1rem;">
+                <input class="form-check-input" type="checkbox" ${on?'checked':''} ${dis?'disabled':''} role="switch"
+                  ${dis?'title="Admin permissions are always granted and cannot be changed"':''}
+                  onchange="updateGroupPermission('${g.id}','${p.key}',this.checked)"
+                  style="cursor:${dis?'not-allowed':'pointer'};">
+              </div>
+            </div>`;
+          }).join('')}
+          ${isAdmin?`<div class="mt-3 p-2 rounded d-flex align-items-center gap-2" style="background:rgba(99,102,241,.08);border:1px solid rgba(99,102,241,.2);">
+            <i class="fas fa-lock" style="color:#818cf8;font-size:.8rem;"></i>
+            <span style="font-size:.75rem;color:var(--text-secondary);">Admin permissions are always fully granted and cannot be modified.</span>
+          </div>`:''}
+        </div>
+      </div>
+    </div>`;
+}
+
+function toggleLoginEnabled(enabled) {
+  getSec().loginEnabled=enabled; save();
+  const lr=document.getElementById('navLogoutRow');
+  if(lr) lr.style.display=enabled?'block':'none';
+  renderSecurity();
+  toast(`Login screen ${enabled?'enabled':'disabled'}`, 'info');
+}
+
+function updateGroupPermission(groupId, permKey, value) {
+  const g=getSec().groups.find(x=>x.id===groupId);
+  if(g && g.editable!==false){ g.permissions[permKey]=value; save(); }
+}
+
+function openAddUserModal() {
+  editingUserId=null;
+  document.getElementById('addUserModalTitle').innerHTML=
+    '<i class="fas fa-user-plus me-2" style="color:var(--accent);"></i>Add User';
+  ['auDisplayName','auUsername','auEmail','auPhone','auTitle','auDept','auPassword'].forEach(id=>document.getElementById(id).value='');
+  const sec=getSec();
+  document.getElementById('auGroup').innerHTML=sec.groups.map(g=>`<option value="${g.id}">${esc(g.name)}</option>`).join('');
+  new bootstrap.Modal(document.getElementById('mdlAddUser')).show();
+}
+
+function openEditUserModal(userId) {
+  const sec=getSec();
+  const u=sec.users.find(x=>x.id===userId); if(!u) return;
+  editingUserId=userId;
+  document.getElementById('addUserModalTitle').innerHTML=
+    '<i class="fas fa-user-edit me-2" style="color:var(--accent);"></i>Edit User';
+  document.getElementById('auDisplayName').value=u.displayName||'';
+  document.getElementById('auUsername').value=u.username||'';
+  document.getElementById('auEmail').value=u.email||'';
+  document.getElementById('auPhone').value=u.phone||'';
+  document.getElementById('auTitle').value=u.title||'';
+  document.getElementById('auDept').value=u.department||'';
+  document.getElementById('auPassword').value='';
+  document.getElementById('auGroup').innerHTML=sec.groups.map(g=>`<option value="${g.id}" ${g.id===u.group?'selected':''}>${esc(g.name)}</option>`).join('');
+  new bootstrap.Modal(document.getElementById('mdlAddUser')).show();
+}
+
+function saveNewUser() {
+  const displayName=document.getElementById('auDisplayName').value.trim();
+  const username=document.getElementById('auUsername').value.trim();
+  if(!displayName||!username){ toast('Display name and username are required','warning'); return; }
+  const sec=getSec();
+  if(sec.users.some(u=>u.username===username && u.id!==editingUserId)){
+    toast('Username is already taken','warning'); return;
+  }
+  if(editingUserId){
+    const u=sec.users.find(x=>x.id===editingUserId); if(!u) return;
+    u.displayName=displayName; u.username=username;
+    u.email=document.getElementById('auEmail').value.trim();
+    u.phone=document.getElementById('auPhone').value.trim();
+    u.title=document.getElementById('auTitle').value.trim();
+    u.department=document.getElementById('auDept').value.trim();
+    u.group=document.getElementById('auGroup').value;
+    const pw=document.getElementById('auPassword').value; if(pw) u.password=pw;
+    toast('User updated','success');
+  } else {
+    sec.users.push({
+      id:uid(), displayName, username,
+      password:document.getElementById('auPassword').value,
+      email:document.getElementById('auEmail').value.trim(),
+      phone:document.getElementById('auPhone').value.trim(),
+      title:document.getElementById('auTitle').value.trim(),
+      department:document.getElementById('auDept').value.trim(),
+      group:document.getElementById('auGroup').value,
+      avatar:null, isDefault:false
+    });
+    toast('User added!','success');
+  }
+  save();
+  bootstrap.Modal.getInstance(document.getElementById('mdlAddUser')).hide();
+  renderSecurity();
+}
+
+function deleteUser(userId) {
+  const sec=getSec();
+  const u=sec.users.find(x=>x.id===userId);
+  if(!u||u.isDefault){ toast('Cannot delete the primary administrator','warning'); return; }
+  if(!confirm(`Delete user "${u.displayName}"? This cannot be undone.`)) return;
+  sec.users=sec.users.filter(x=>x.id!==userId);
+  save(); renderSecurity(); toast('User deleted','info');
+}
+
+// ════════════════════════════════════════════════════════════
+// FILE ATTACHMENTS
+// ════════════════════════════════════════════════════════════
+function fmtFileSize(bytes) {
+  if (!bytes || bytes < 1024) return (bytes||0) + ' B';
+  if (bytes < 1024*1024) return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/(1024*1024)).toFixed(1) + ' MB';
+}
+
+function fileIcon(type) {
+  if (!type) return { cls:'fa-file', bg:'#94a3b8' };
+  if (type.startsWith('image/'))                             return { cls:'fa-file-image', bg:'#ec4899' };
+  if (type === 'application/pdf')                            return { cls:'fa-file-pdf',   bg:'#ef4444' };
+  if (type.includes('word') || type.includes('document'))   return { cls:'fa-file-word',  bg:'#3b82f6' };
+  if (type.includes('excel') || type.includes('sheet'))     return { cls:'fa-file-excel', bg:'#10b981' };
+  if (type.includes('powerpoint') || type.includes('presentation')) return { cls:'fa-file-powerpoint', bg:'#f97316' };
+  if (type.includes('zip') || type.includes('compressed') || type.includes('archive')) return { cls:'fa-file-archive', bg:'#8b5cf6' };
+  if (type.startsWith('text/'))                             return { cls:'fa-file-alt',   bg:'#6366f1' };
+  return { cls:'fa-file', bg:'#94a3b8' };
+}
+
+function handleAttachDrop(e) {
+  e.preventDefault();
+  e.currentTarget.classList.remove('dragover');
+  const c = byId(activeCase); if (!c) return;
+  [...e.dataTransfer.files].forEach(f => processAttachFile(f, c));
+}
+
+function handleAttachFile(e) {
+  const c = byId(activeCase); if (!c) return;
+  [...e.target.files].forEach(f => processAttachFile(f, c));
+  e.target.value = '';
+}
+
+function processAttachFile(file, c) {
+  const maxMB = 10;
+  if (file.size > maxMB * 1024 * 1024) {
+    toast(`${file.name} exceeds ${maxMB} MB limit`, 'warning'); return;
+  }
+  const r = new FileReader();
+  r.onload = ev => {
+    if (!c.attachments) c.attachments = [];
+    c.attachments.push({
+      id:uid(), name:file.name, type:file.type,
+      size:file.size, date:new Date().toISOString(),
+      data:ev.target.result
+    });
+    save(); renderAttachments(c);
+    toast(file.name + ' attached', 'success');
+  };
+  r.readAsDataURL(file);
+}
+
+function renderAttachments(c) {
+  const atts = c.attachments || [];
+  const badge = document.getElementById('attachCountBadge');
+  if (badge) badge.textContent = atts.length;
+  const listEl = document.getElementById('attachList');
+  if (!listEl) return;
+  if (!atts.length) {
+    listEl.innerHTML = `<div class="empty-state" style="padding:1.75rem 1.5rem;">
+      <i class="fas fa-paperclip" style="font-size:2.5rem;"></i>
+      <p class="mb-1">No attachments yet</p>
+      <small>Drag &amp; drop files above or use Browse</small>
+    </div>`;
+    return;
+  }
+  listEl.innerHTML = atts.map(a => {
+    const ic = fileIcon(a.type);
+    return `<div class="attach-item">
+      <div class="attach-icon" style="background:${hexRgba(ic.bg,.15)};color:${ic.bg};">
+        <i class="fas ${ic.cls}"></i>
+      </div>
+      <div class="flex-grow-1 min-w-0">
+        <div style="font-weight:600;font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${esc(a.name)}">${esc(a.name)}</div>
+        <div style="font-size:.74rem;color:var(--text-secondary);">${fmtFileSize(a.size)} &nbsp;&middot;&nbsp; ${fmtDate(a.date)}</div>
+      </div>
+      <a href="${a.data}" download="${esc(a.name)}" class="btn btn-sm btn-ghost" title="Download"><i class="fas fa-download"></i></a>
+      <button class="btn btn-sm btn-danger-ghost" onclick="deleteAttachment('${a.id}',event)" title="Remove"><i class="fas fa-times"></i></button>
+    </div>`;
+  }).join('');
+}
+
+function deleteAttachment(attId, event) {
+  event.stopPropagation();
+  if (!confirm('Remove this attachment?')) return;
+  const c = byId(activeCase); if (!c) return;
+  c.attachments = (c.attachments||[]).filter(a=>a.id!==attId);
+  save(); renderAttachments(c);
+  toast('Attachment removed', 'info');
+}
+
+// ════════════════════════════════════════════════════════════
+// PDF REPORT
+// ════════════════════════════════════════════════════════════
+function hexToRgbArr(hex) {
+  const h = hex.replace('#','');
+  return [parseInt(h.slice(0,2),16), parseInt(h.slice(2,4),16), parseInt(h.slice(4,6),16)];
+}
+
+function buildReport(c) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ orientation:'portrait', unit:'mm', format:'a4' });
+  const W = 210, ml = 16, mr = 16, cw = W - ml - mr;
+  let y = 0;
+
+  // ── Header gradient bar ──
+  const barSegs = [
+    [0, '#6366f1'],[W*.35,'#8b5cf6'],[W*.6,'#ec4899'],[W*.8,'#f59e0b']
+  ];
+  barSegs.forEach((s,i)=>{
+    const [r,g,b]=hexToRgbArr(s[1]);
+    doc.setFillColor(r,g,b);
+    const nextX = barSegs[i+1]?barSegs[i+1][0]:W;
+    doc.rect(s[0], 0, nextX-s[0], 16, 'F');
+  });
+  // Brand name in header
+  doc.setFontSize(12); doc.setTextColor(255,255,255); doc.setFont(undefined,'bold');
+  doc.text('SupportTrack Pro', ml, 9);
+  doc.setFontSize(7.5); doc.setFont(undefined,'normal');
+  doc.text('Support Case Report', ml, 13.5);
+  doc.setFontSize(7.5);
+  doc.text('Generated: ' + new Date().toLocaleString(), W-mr, 12, {align:'right'});
+  y = 24;
+
+  // ── Case number + title ──
+  const cfg = getCfg();
+  const st = cfg.statuses.find(x=>x.value===c.status)||{label:c.status||'—',color:'#94a3b8'};
+  const pr = cfg.priorities.find(x=>x.value===c.priority)||{label:c.priority||'—',color:'#94a3b8'};
+
+  doc.setFontSize(7.5); doc.setTextColor(...hexToRgbArr('#6366f1')); doc.setFont(undefined,'bold');
+  doc.text((c.caseNumber||'CASE-0000').toUpperCase(), ml, y); y += 5;
+
+  doc.setFontSize(17); doc.setTextColor(15,23,42); doc.setFont(undefined,'bold');
+  const titleLines = doc.splitTextToSize(c.title||'Untitled Case', cw);
+  doc.text(titleLines, ml, y);
+  y += titleLines.length * 7 + 2;
+
+  // Status + Priority pills
+  function drawPill(text, color, xPos, yPos) {
+    const [r,g,b] = hexToRgbArr(color);
+    doc.setFillColor(r,g,b);
+    doc.setFontSize(7); doc.setFont(undefined,'bold');
+    const tw = doc.getTextWidth(text);
+    doc.roundedRect(xPos, yPos-3.8, tw+7, 5.8, 2, 2, 'F');
+    doc.setTextColor(255,255,255);
+    doc.text(text, xPos+3.5, yPos);
+    return tw + 10;
+  }
+  let px = ml;
+  px += drawPill(st.label.toUpperCase(), st.color, px, y);
+  drawPill(pr.label.toUpperCase(), pr.color, px, y);
+  y += 9;
+
+  // Divider
+  doc.setDrawColor(226,232,240); doc.setLineWidth(.35);
+  doc.line(ml, y, W-mr, y); y += 6;
+
+  // ── Info grid (2 columns) ──
+  const infoItems = [
+    ['Company',     c.company||'—'],
+    ['Category',    c.category||'—'],
+    ['Support Phone', c.phone||'—'],
+    ['Account #',   c.accountNumber||'—'],
+    ['Date Opened', fmtDate(c.created)],
+    ['Last Updated',fmtDate(c.updated)],
+    ['Total Calls', String((c.calls||[]).length)],
+    ['Total Time',  fmtDur(totalTime(c))||'0m']
+  ];
+  const colW = cw/2 - 4;
+  for (let i = 0; i < infoItems.length; i += 2) {
+    const rowY = y;
+    for (let col = 0; col < 2; col++) {
+      const item = infoItems[i+col]; if (!item) break;
+      const x = col===0 ? ml : ml+colW+8;
+      doc.setFontSize(6.5); doc.setTextColor(100,116,139); doc.setFont(undefined,'normal');
+      doc.text(item[0].toUpperCase(), x, rowY);
+      doc.setFontSize(8.5); doc.setTextColor(15,23,42); doc.setFont(undefined,'bold');
+      doc.text(String(item[1]), x, rowY+4.5);
+    }
+    y += 12;
+  }
+
+  // ── Description ──
+  if (c.description) {
+    doc.setDrawColor(226,232,240); doc.line(ml, y, W-mr, y); y += 6;
+    doc.setFontSize(7); doc.setTextColor(100,116,139); doc.setFont(undefined,'bold');
+    doc.text('DESCRIPTION', ml, y); y += 4.5;
+    doc.setFontSize(8.5); doc.setTextColor(51,65,85); doc.setFont(undefined,'normal');
+    const descLines = doc.splitTextToSize(c.description, cw);
+    doc.text(descLines, ml, y);
+    y += descLines.length * 4.5 + 5;
+  }
+
+  // ── Call Log table ──
+  if ((c.calls||[]).length) {
+    if (y > 250) { doc.addPage(); y = 18; }
+    doc.setDrawColor(226,232,240); doc.line(ml, y, W-mr, y); y += 6;
+    doc.setFontSize(7); doc.setTextColor(100,116,139); doc.setFont(undefined,'bold');
+    doc.text('CALL LOG', ml, y); y += 5;
+
+    doc.autoTable({
+      startY: y,
+      margin: { left:ml, right:mr, bottom:26 },
+      headStyles: { fillColor:[99,102,241], textColor:255, fontSize:7.5, fontStyle:'bold', halign:'left', cellPadding:3.5 },
+      bodyStyles: { fontSize:8, textColor:[15,23,42], cellPadding:3 },
+      alternateRowStyles: { fillColor:[248,250,252] },
+      columnStyles: { 0:{cellWidth:28}, 1:{cellWidth:20}, 2:{cellWidth:28}, 3:{cellWidth:28}, 4:{cellWidth:'auto'} },
+      head: [['Date','Duration','Representative','Outcome','Notes']],
+      body: (c.calls||[]).map(call=>[
+        fmtDT(call.date),
+        fmtDur(call.duration)||'—',
+        call.representative||'—',
+        getCfg().outcomes.find(x=>x.value===call.outcome)?.label||call.outcome||'—',
+        call.notes||'—'
+      ])
+    });
+    y = doc.lastAutoTable.finalY + 6;
+  }
+
+  // ── Attachments list ──
+  if ((c.attachments||[]).length) {
+    if (y > 250) { doc.addPage(); y = 18; }
+    doc.setFontSize(7); doc.setTextColor(100,116,139); doc.setFont(undefined,'bold');
+    doc.text('ATTACHMENTS', ml, y); y += 5;
+    c.attachments.forEach((a,i)=>{
+      doc.setFontSize(8.5); doc.setTextColor(15,23,42); doc.setFont(undefined,'normal');
+      doc.text(`${i+1}.  ${a.name}`, ml+2, y);
+      doc.setFontSize(7); doc.setTextColor(100,116,139);
+      doc.text(fmtFileSize(a.size) + '   ·   ' + fmtDate(a.date), ml+2, y+4);
+      y += 9;
+    });
+  }
+
+  // ── Footer on every page ──
+  // A4 = 297 mm tall. Footer rule at 274 mm leaves ~23 mm visible bottom margin.
+  const pageCount = doc.internal.getNumberOfPages();
+  const FY = 274;  // y of the divider rule
+  for (let i = 1; i <= pageCount; i++) {
+    doc.setPage(i);
+    doc.setDrawColor(180, 190, 210); doc.setLineWidth(0.5);
+    doc.line(ml, FY, W-mr, FY);
+    // Line 1 – Copyright(C)-2026  centered
+    doc.setFontSize(8); doc.setTextColor(50, 60, 90); doc.setFont(undefined,'bold');
+    doc.text('Copyright(C)-2026', W/2, FY+6, {align:'center'});
+    // Line 2 – Organization  centered
+    doc.setFontSize(7.5); doc.setFont(undefined,'normal');
+    doc.text("Greg Zehner's Information System", W/2, FY+12, {align:'center'});
+    // Page number – right-aligned on line 1
+    doc.setFontSize(7); doc.setTextColor(130, 140, 170);
+    doc.text(`Page ${i} of ${pageCount}`, W-mr, FY+6, {align:'right'});
+  }
+
+  return doc;
+}
+
+function openReportModal() {
+  const c = byId(activeCase); if (!c) return;
+  window._reportDoc = null; window._reportBlobUrl = null;
+
+  const frame = document.getElementById('reportPreviewFrame');
+  const spinner = document.getElementById('reportSpinner');
+  const titleEl = document.getElementById('reportModalTitle');
+
+  frame.style.display = 'none';
+  spinner.style.display = 'flex';
+  titleEl.innerHTML = '<i class="fas fa-file-pdf me-2" style="color:#ef4444;"></i>Case Report';
+
+  const modal = new bootstrap.Modal(document.getElementById('mdlReport'));
+  modal.show();
+
+  setTimeout(()=>{
+    try {
+      const doc = buildReport(c);
+      const blob = doc.output('blob');
+      const url  = URL.createObjectURL(blob);
+      frame.src  = url;
+      frame.style.display = 'block';
+      spinner.style.display = 'none';
+      window._reportDoc = doc;
+      window._reportBlobUrl = url;
+      window._reportCaseNum = c.caseNumber;
+    } catch(e) {
+      console.error('Report error', e);
+      spinner.innerHTML = `<div class="text-center p-4" style="color:#ef4444;">
+        <i class="fas fa-exclamation-circle mb-2" style="font-size:2rem;"></i>
+        <div>Report generation failed.</div><small>${esc(e.message)}</small></div>`;
+    }
+  }, 150);
+}
+
+function reportEmail() {
+  const c = byId(activeCase); if (!c) return;
+  const subj = encodeURIComponent(`Support Case Report – ${c.caseNumber}: ${c.title}`);
+  const body = encodeURIComponent(
+    `Please find the attached support case report.\n\nCase: ${c.caseNumber}\nTitle: ${c.title}\nCompany: ${c.company}\nStatus: ${c.status}\n\nNote: Save the PDF from the report viewer and attach it manually.`
+  );
+  window.location.href = `mailto:?subject=${subj}&body=${body}`;
+}
+
+function reportPrint() {
+  const frame = document.getElementById('reportPreviewFrame');
+  if (frame && frame.contentWindow) { try { frame.contentWindow.print(); } catch(e) {} }
+}
+
+function reportSave() {
+  if (!window._reportDoc) { toast('Report not ready yet','warning'); return; }
+  const c = byId(activeCase);
+  const fname = ((c?.caseNumber||'report').toLowerCase()) + '-report.pdf';
+  window._reportDoc.save(fname);
+  toast('Report saved!', 'success');
+}
+
+// ════════════════════════════════════════════════════════════
+// SCHEDULE / CALENDAR
+// ════════════════════════════════════════════════════════════
+function openScheduleModal(opts) {
+  opts = opts || {};
+  const caseId = (opts.caseId !== undefined) ? opts.caseId : activeCase;
+  const c = byId(caseId);
+  const now = new Date();
+  const toLocal = d => new Date(d.getTime() - d.getTimezoneOffset()*60000).toISOString().slice(0,16);
+
+  let startDT, endDT;
+  if (opts.date) {
+    startDT = opts.date + 'T09:00';
+    endDT   = opts.date + 'T10:00';
+  } else {
+    startDT = toLocal(now);
+    endDT   = toLocal(new Date(now.getTime() + 3600000));
+  }
+
+  document.getElementById('schTitle').value    = c ? `Follow-up: ${c.caseNumber} \u2013 ${c.title}` : '';
+  document.getElementById('schStart').value    = startDT;
+  document.getElementById('schEnd').value      = endDT;
+  document.getElementById('schLocation').value = c && c.phone ? `Phone: ${c.phone}` : '';
+  document.getElementById('schDesc').value     = c
+    ? `Case: ${c.caseNumber}\nCompany: ${c.company}\nStatus: ${c.status}`
+      + (c.accountNumber ? `\nAccount: ${c.accountNumber}` : '')
+      + (c.description   ? `\n\n${c.description}` : '')
+    : '';
+  document.getElementById('schReminder').value = '15';
+  _schedCaseId = caseId || null;
+  new bootstrap.Modal(document.getElementById('mdlSchedule')).show();
+}
+
+function buildScheduleEventObj() {
+  const c = byId(_schedCaseId);
+  return {
+    id:          uid(),
+    title:       document.getElementById('schTitle').value.trim(),
+    start:       document.getElementById('schStart').value,
+    end:         document.getElementById('schEnd').value,
+    location:    document.getElementById('schLocation').value.trim(),
+    description: document.getElementById('schDesc').value.trim(),
+    reminder:    parseInt(document.getElementById('schReminder').value) || 0,
+    caseId:      _schedCaseId || null,
+    caseNumber:  c ? c.caseNumber : '',
+    created:     new Date().toISOString()
+  };
+}
+
+function saveScheduledEvent() {
+  const title = document.getElementById('schTitle').value.trim();
+  if (!title) { toast('Please enter an event title', 'warning'); return; }
+  if (!DB.events) DB.events = [];
+  DB.events.push(buildScheduleEventObj());
+  save();
+  bootstrap.Modal.getInstance(document.getElementById('mdlSchedule'))?.hide();
+  toast('Event saved to calendar!', 'success');
+}
+
+function saveAndDownloadEvent() {
+  const title = document.getElementById('schTitle').value.trim();
+  if (!title) { toast('Please enter an event title', 'warning'); return; }
+  const evt = buildScheduleEventObj();
+  if (!DB.events) DB.events = [];
+  DB.events.push(evt);
+  save();
+  generateAndDownloadICS(evt);
+  bootstrap.Modal.getInstance(document.getElementById('mdlSchedule'))?.hide();
+  toast('Event saved & Outlook file downloaded!', 'success');
+}
+
+// ── ICS generation ──
+function generateAndDownloadICS(evt) {
+  function icsStamp(dtStr) {
+    if (!dtStr) return '';
+    const d = new Date(dtStr);
+    const p = n => String(n).padStart(2,'0');
+    return `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}T${p(d.getHours())}${p(d.getMinutes())}00`;
+  }
+  const start = icsStamp(evt.start);
+  const end   = icsStamp(evt.end || evt.start);
+  const stamp = icsStamp(new Date().toISOString());
+  const safe  = s => (s||'').replace(/\\/g,'\\\\').replace(/;/g,'\\;').replace(/,/g,'\\,').replace(/\n/g,'\\n');
+  const remind= parseInt(evt.reminder) || 0;
+
+  const lines = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//SupportTrack Pro//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    'BEGIN:VEVENT',
+    `UID:${evt.id}@supporttrack-pro`,
+    `DTSTAMP:${stamp}`,
+    `DTSTART:${start}`,
+    `DTEND:${end}`,
+    `SUMMARY:${safe(evt.title)}`,
+    evt.description ? `DESCRIPTION:${safe(evt.description)}` : '',
+    evt.location    ? `LOCATION:${safe(evt.location)}`       : '',
+    ...(remind > 0 ? [
+      'BEGIN:VALARM',
+      `TRIGGER:-PT${remind}M`,
+      'ACTION:DISPLAY',
+      'DESCRIPTION:Reminder',
+      'END:VALARM'
+    ] : []),
+    'END:VEVENT',
+    'END:VCALENDAR'
+  ].filter(Boolean);
+
+  const blob = new Blob([lines.join('\r\n')], {type:'text/calendar;charset=utf-8'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = (evt.title||'event').replace(/[^\w\s-]/g,'').trim().replace(/\s+/g,'-').toLowerCase() + '.ics';
+  a.click();
+}
+
+function downloadEventICS(eventId) {
+  const e = (DB.events||[]).find(x=>x.id===eventId);
+  if (!e) return;
+  generateAndDownloadICS(e);
+  toast('Outlook calendar file downloaded', 'success');
+}
+
+// ── Calendar view ──
+function showCalendar() {
+  calYear  = new Date().getFullYear();
+  calMonth = new Date().getMonth();
+  showView('viewCalendar');
+  renderCalendar();
+}
+
+function calNav(dir) {
+  calMonth += dir;
+  if (calMonth > 11) { calMonth = 0; calYear++; }
+  if (calMonth <  0) { calMonth = 11; calYear--; }
+  renderCalendar();
+}
+
+function renderCalendar() {
+  const el = document.getElementById('calendarView');
+  if (!el) return;
+  if (!DB.events) DB.events = [];
+
+  const today    = new Date();
+  const firstDay = new Date(calYear, calMonth, 1);
+  const lastDay  = new Date(calYear, calMonth+1, 0);
+  const startDow = firstDay.getDay();
+  const prevLast = new Date(calYear, calMonth, 0).getDate();
+  const totalDays= lastDay.getDate();
+  const monthName= firstDay.toLocaleString('en-US', {month:'long', year:'numeric'});
+
+  // ── Grid cells ──
+  let cells = '';
+  // Prev-month padding
+  for (let i = startDow-1; i >= 0; i--)
+    cells += `<div class="cal-cell other-mo"><div class="cal-num">${prevLast-i}</div></div>`;
+
+  // Current month
+  for (let d = 1; d <= totalDays; d++) {
+    const isToday = today.getFullYear()===calYear && today.getMonth()===calMonth && today.getDate()===d;
+    const dayStr  = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    const dayEvts = DB.events.filter(e=>e.start&&e.start.slice(0,10)===dayStr)
+                              .sort((a,b)=>a.start>b.start?1:-1);
+    const evHTML  = dayEvts.slice(0,3).map(e=>{
+      const c   = byId(e.caseId);
+      const pr  = c ? getCfg().priorities.find(x=>x.value===c.priority) : null;
+      const col = pr ? pr.color : '#6366f1';
+      return `<div class="cal-ev" style="background:${hexRgba(col,.22)};color:${col};"
+               onclick="event.stopPropagation();viewCalEvent('${e.id}')" title="${esc(e.title)}">${esc(e.title)}</div>`;
+    }).join('');
+    const moreHTML = dayEvts.length > 3
+      ? `<div style="font-size:.62rem;color:var(--text-secondary);padding:.05rem .3rem;">+${dayEvts.length-3} more</div>` : '';
+
+    cells += `<div class="cal-cell ${isToday?'is-today':''}" onclick="openScheduleModal({caseId:null,date:'${dayStr}'})">
+      <div class="cal-num">${d}</div>${evHTML}${moreHTML}</div>`;
+  }
+  // Next-month padding
+  const totalCells = Math.ceil((startDow+totalDays)/7)*7;
+  for (let d = 1; d <= totalCells-startDow-totalDays; d++)
+    cells += `<div class="cal-cell other-mo"><div class="cal-num">${d}</div></div>`;
+
+  // ── Upcoming events ──
+  const now = new Date(today.toDateString());
+  const upcoming = DB.events.filter(e=>new Date(e.start)>=now)
+                             .sort((a,b)=>a.start>b.start?1:-1)
+                             .slice(0,12);
+
+  const upcomingHTML = upcoming.length ? upcoming.map(e=>{
+    const c   = byId(e.caseId);
+    const pr  = c ? getCfg().priorities.find(x=>x.value===c.priority) : null;
+    const col = pr ? pr.color : '#6366f1';
+    return `<div class="admin-list-item" style="cursor:pointer;" onclick="viewCalEvent('${e.id}')">
+      <div style="width:10px;height:10px;border-radius:50%;background:${col};flex-shrink:0;margin-top:.2rem;"></div>
+      <div class="flex-grow-1 min-w-0">
+        <div style="font-weight:600;font-size:.86rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${esc(e.title)}</div>
+        <div style="font-size:.74rem;color:var(--text-secondary);">${fmtDT(e.start)}${e.location?' &middot; '+esc(e.location):''}
+          ${c?`&middot; <span style="color:var(--accent);font-family:monospace;">${esc(c.caseNumber)}</span>`:''}
+        </div>
+      </div>
+      <button class="btn btn-sm btn-ghost" onclick="event.stopPropagation();downloadEventICS('${e.id}')" title="Download .ics"><i class="fas fa-file-download"></i></button>
+      <button class="btn btn-sm btn-danger-ghost" onclick="event.stopPropagation();deleteCalEvent('${e.id}')" title="Delete"><i class="fas fa-trash-alt"></i></button>
+    </div>`;
+  }).join('') : `<div class="empty-state" style="padding:2rem 1rem;">
+    <i class="fas fa-calendar-check"></i>
+    <p class="mb-1">No upcoming events</p>
+    <small>Click any day or use the <strong>New Event</strong> button to schedule</small>
+  </div>`;
+
+  el.innerHTML = `
+    <div class="d-flex align-items-center gap-3 mb-4">
+      <button class="btn btn-sm btn-ghost" onclick="goHome()"><i class="fas fa-arrow-left me-1"></i>Back</button>
+      <div>
+        <h5 class="mb-0 fw-bold"><i class="fas fa-calendar-alt me-2" style="color:var(--accent);"></i>Calendar</h5>
+        <div style="font-size:.78rem;color:var(--text-secondary);">${upcoming.length} upcoming event${upcoming.length!==1?'s':''}</div>
+      </div>
+      <div class="ms-auto">
+        <button class="btn btn-sm btn-accent" onclick="openScheduleModal({caseId:null})"><i class="fas fa-calendar-plus me-1"></i>New Event</button>
+      </div>
+    </div>
+
+    <div class="row g-3">
+      <div class="col-xl-9">
+        <div class="content-card">
+          <div class="d-flex justify-content-between align-items-center p-3" style="border-bottom:1px solid var(--border);">
+            <button class="btn btn-sm btn-ghost" onclick="calNav(-1)"><i class="fas fa-chevron-left"></i></button>
+            <h6 class="mb-0 fw-bold">${monthName}</h6>
+            <button class="btn btn-sm btn-ghost" onclick="calNav(1)"><i class="fas fa-chevron-right"></i></button>
+          </div>
+          <div class="cal-grid">
+            ${['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>`<div class="cal-hdr">${d}</div>`).join('')}
+            ${cells}
+          </div>
+        </div>
+      </div>
+      <div class="col-xl-3">
+        <div class="content-card">
+          <div class="p-3" style="border-bottom:1px solid var(--border);">
+            <h6 class="mb-0 fw-bold" style="font-size:.85rem;"><i class="fas fa-list me-2" style="color:var(--accent);"></i>Upcoming Events</h6>
+          </div>
+          ${upcomingHTML}
+        </div>
+      </div>
+    </div>`;
+}
+
+function viewCalEvent(eventId) {
+  const e = (DB.events||[]).find(x=>x.id===eventId);
+  if (!e) return;
+  const c = byId(e.caseId);
+  document.getElementById('calEvTitle').textContent    = e.title;
+  document.getElementById('calEvStart').textContent    = fmtDT(e.start);
+  document.getElementById('calEvEnd').textContent      = e.end ? fmtDT(e.end) : '—';
+  document.getElementById('calEvLocation').textContent = e.location || '—';
+  document.getElementById('calEvDesc').textContent     = e.description || '—';
+  document.getElementById('calEvCase').innerHTML       = c
+    ? `<a href="#" onclick="openCase('${c.id}');bootstrap.Modal.getInstance(document.getElementById('mdlCalEvent'))?.hide();return false;"
+         style="color:var(--accent);">${esc(c.caseNumber)} — ${esc(c.title)}</a>`
+    : '—';
+  document.getElementById('calEvDeleteBtn').dataset.eid = eventId;
+  document.getElementById('calEvICSBtn').dataset.eid    = eventId;
+  new bootstrap.Modal(document.getElementById('mdlCalEvent')).show();
+}
+
+function deleteCalEvent(eventId) {
+  if (!confirm('Delete this calendar event?')) return;
+  DB.events = (DB.events||[]).filter(e=>e.id!==eventId);
+  save();
+  bootstrap.Modal.getInstance(document.getElementById('mdlCalEvent'))?.hide();
+  if (document.getElementById('viewCalendar').classList.contains('active')) renderCalendar();
+  toast('Event deleted', 'info');
+}
+
+// ════════════════════════════════════════════════════════════
+// REFRESH ALL
+// ════════════════════════════════════════════════════════════
+function refreshAll() { updateStats(); refreshTable(); }
+
+// ════════════════════════════════════════════════════════════
+// INIT
+// ════════════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded',()=>{
+  loadTheme();
+  const hasData=lsLoad();
+  // Ensure security block exists
+  if(!DB.security) DB.security=defaultSecurity();
+  refreshAll();
+  checkAuth();
+  if(!hasData){
+    setTimeout(()=>promptFileAction(),600);
+  } else {
+    setFileStatus(false,'Local storage');
+  }
+});
+</script>
+</body>
+</html>
