@@ -1,0 +1,42 @@
+services:
+  postgresql:
+    image: postgres:${POSTGRES_VERSION:-17}
+    container_name: ${POSTGRES_CONTAINER_NAME:-postgresql}
+    hostname: ${POSTGRES_HOSTNAME:-postgresql}
+
+    restart: unless-stopped
+
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?POSTGRES_USER must be defined}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD must be defined}
+      POSTGRES_DB: ${POSTGRES_DB:?POSTGRES_DB must be defined}
+      TZ: ${TZ:-America/Los_Angeles}
+
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+    networks:
+      - database
+
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  database:
+    name: ${POSTGRES_NETWORK_NAME:-database}
+    driver: bridge
+
+volumes:
+  postgres_data:
+    name: ${POSTGRES_VOLUME_NAME:-postgres_data}
