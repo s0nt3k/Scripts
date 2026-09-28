@@ -22,9 +22,15 @@
               file scan (SFC)
 
         * Managing component store DRIVERS
+            - explains that the component store's in-box drivers are not the
+              driver store, which is where these operations actually land
             - list / install / uninstall third-party drivers
             - push the active machine's driver store into the target store
             - driver report (HTML + CSV)
+            - download drivers with Snappy Driver Installer Origin (fetched
+              and kept at the latest release automatically): every driver for
+              this machine, only the boot/online-essential ones, or every
+              driver pack for all hardware; then optionally add them
 
         * Managing component store UPDATES
             - list / add / remove update packages (.msu / .cab)
@@ -56,6 +62,15 @@
             - every action taken during the sitting, with outcomes, timings
               and a sign-off block, as HTML (print-styled), CSV and JSON
 
+    On start-up, leftovers of a previous session are detected: images still
+    mounted, attached installation ISOs, loaded offline hives, temporary mount
+    folders and VSS shadow copies. Clearing them is recommended unless a
+    mounted image is still being worked on.
+
+    Long operations (backup capture, ScanHealth, RestoreHealth, analysis,
+    SFC, driver downloads and injection) show a progress bar with elapsed
+    time and an estimate of the time remaining.
+
 .NOTES
     Run from an ELEVATED Windows PowerShell 5.1 or PowerShell 7 console.
     Requires DISM (in-box) and, for ISO work, the Dism PowerShell module.
@@ -84,7 +99,7 @@ param(
 #region ------------------------------------------------------------- Globals
 
 $Script:AppName    = 'Component Store Management'
-$Script:AppVersion = '1.0'
+$Script:AppVersion = '1.1'
 $Script:ScriptPath = $MyInvocation.MyCommand.Path
 $Script:WorkRoot   = Join-Path $env:ProgramData 'ComponentStoreManagement'
 $Script:MountRoot  = Join-Path $Script:WorkRoot  'Mount'
@@ -100,6 +115,15 @@ foreach ($dir in @($Script:WorkRoot, $Script:MountRoot, $Script:ReportRoot, $Scr
 
 $Script:BackupRoot = Join-Path $Script:WorkRoot 'Backups'
 $Script:CacheRoot  = Join-Path $Script:WorkRoot 'UpdateCache'
+
+# Shadow copies this tool creates are recorded here until they are released,
+# so one stranded by a crash can be recognised on the next start.
+$Script:ShadowStateFile = Join-Path $Script:WorkRoot 'shadow-copies.json'
+
+# Snappy Driver Installer Origin: application, driver packs, indexes, logs.
+$Script:SdioRoot    = Join-Path $Script:WorkRoot 'SDIO'
+$Script:SdioPageUrl = 'https://www.glenn.delahoy.com/snappy-driver-installer-origin/'
+$Script:SdioSite    = 'https://www.glenn.delahoy.com'
 
 foreach ($dir in @($Script:BackupRoot, $Script:CacheRoot)) {
     if (-not (Test-Path -LiteralPath $dir)) {
@@ -280,6 +304,45 @@ function Format-Bytes {
     $i = 0
     while ($Bytes -ge 1024 -and $i -lt ($units.Count - 1)) { $Bytes /= 1024; $i++ }
     return ('{0:N2} {1}' -f $Bytes, $units[$i])
+}
+
+function Write-OpProgress {
+    <#
+        The progress bar used for every long-running operation. Shows the
+        elapsed time always and, once a percentage is known, an estimate of
+        the time remaining. A negative Percent means "not known yet".
+    #>
+    param(
+        [Parameter(Mandatory)][string]$Activity,
+        [Parameter(Mandatory)][datetime]$Started,
+        [double]$Percent = -1,
+        [string]$Status = '',
+        [int]$Id = 1
+    )
+
+    $elapsed = (Get-Date) - $Started
+    $parts   = New-Object System.Collections.Generic.List[string]
+    if ($Percent -ge 0) { $parts.Add(('{0:N1}%' -f $Percent)) }
+    if ($Status)        { $parts.Add($Status) }
+    $parts.Add(('elapsed {0:hh\:mm\:ss}' -f $elapsed))
+
+    $pc        = -1
+    $remaining = -1
+    if ($Percent -ge 0) {
+        $pc = [int][math]::Min(100, [math]::Max(0, [math]::Floor($Percent)))
+        # Early percentages are too noisy to extrapolate from.
+        if ($Percent -ge 1 -and $Percent -lt 100) {
+            $remaining = [int]($elapsed.TotalSeconds * (100 - $Percent) / $Percent)
+        }
+    }
+
+    Write-Progress -Id $Id -Activity $Activity -Status ($parts -join '  |  ') `
+                   -PercentComplete $pc -SecondsRemaining $remaining
+}
+
+function Complete-OpProgress {
+    param([Parameter(Mandatory)][string]$Activity, [int]$Id = 1)
+    Write-Progress -Id $Id -Activity $Activity -Completed
 }
 
 #endregion
@@ -621,11 +684,16 @@ function Invoke-Dism {
         Runs dism.exe against the current target, streaming output to the
         console (progress bars collapsed) and to the log, and returns
         @{ ExitCode; Text; Lines }.
+
+        With -Activity, DISM's own text progress ("[===  42.0%  ]") and its
+        per-item counters ("Installing 3 of 40") drive a PowerShell progress
+        bar instead of being discarded.
     #>
     param(
         [Parameter(Mandatory)][string[]]$Arguments,
         [switch]$Quiet,
-        [switch]$NoScope      # do not prepend /Online or /Image:
+        [switch]$NoScope,     # do not prepend /Online or /Image:
+        [string]$Activity
     )
 
     $scope = @()
@@ -642,24 +710,45 @@ function Invoke-Dism {
 
     $lines        = New-Object System.Collections.Generic.List[string]
     $progressSeen = $false
+    $started      = Get-Date
 
-    & dism.exe @full 2>&1 | ForEach-Object {
-        $line = ([string]$_) -replace "[`b`r]", ''
-        if ([string]::IsNullOrWhiteSpace($line)) { return }
-        $lines.Add($line)
-        Write-Log $line 'RAW'
+    if ($Activity) { Write-OpProgress -Activity $Activity -Started $started -Status 'starting' }
 
-        if ($line -match '^\s*\[[=\s\.]*[\d\.]*%?[=\s\.]*\]') {
-            if (-not $Quiet -and -not $progressSeen) {
-                Write-Host '   working, this can take several minutes...' -ForegroundColor DarkGray
-                $progressSeen = $true
+    try {
+        & dism.exe @full 2>&1 | ForEach-Object {
+            $line = ([string]$_) -replace "[`b`r]", ''
+            if ([string]::IsNullOrWhiteSpace($line)) { return }
+            $lines.Add($line)
+            Write-Log $line 'RAW'
+
+            if ($line -match '^\s*\[[=\s\.]*[\d\.]*%?[=\s\.]*\]') {
+                if ($Activity) {
+                    if ($line -match '(\d{1,3}(?:\.\d+)?)%') {
+                        Write-OpProgress -Activity $Activity -Started $started -Percent ([double]$Matches[1])
+                    }
+                }
+                elseif (-not $Quiet -and -not $progressSeen) {
+                    Write-Host '   working, this can take several minutes...' -ForegroundColor DarkGray
+                    $progressSeen = $true
+                }
+                return
             }
-            return
+
+            if ($Activity -and $line -match '^\s*(?:Installing|Processing)\s+(\d+)\s+of\s+(\d+)') {
+                $n = [double]$Matches[1]; $m = [double]$Matches[2]
+                if ($m -gt 0) {
+                    Write-OpProgress -Activity $Activity -Started $started -Percent (($n - 1) * 100 / $m) `
+                                     -Status ('item {0} of {1}' -f $n, $m)
+                }
+            }
+            if (-not $Quiet) { Write-Host ('   {0}' -f $line) -ForegroundColor Gray }
         }
-        if (-not $Quiet) { Write-Host ('   {0}' -f $line) -ForegroundColor Gray }
+        $code = $LASTEXITCODE
+    }
+    finally {
+        if ($Activity) { Complete-OpProgress -Activity $Activity }
     }
 
-    $code = $LASTEXITCODE
     Write-Log ("dism exit code: {0}" -f $code) 'INFO'
 
     return [pscustomobject]@{
@@ -675,6 +764,10 @@ function Invoke-Sfc {
         console, so the console encoding is switched for the duration.
     #>
     param([switch]$VerifyOnly)
+
+    $activity = if ($VerifyOnly) { 'Scanning for missing or corrupted system files (SFC)' }
+                else             { 'Scanning and repairing system files (SFC)' }
+    $started  = Get-Date
 
     $sfcArgs = @()
     $sfcArgs += if ($VerifyOnly) { '/verifyonly' } else { '/scannow' }
@@ -694,12 +787,20 @@ function Invoke-Sfc {
     $lines    = New-Object System.Collections.Generic.List[string]
     try {
         [Console]::OutputEncoding = [System.Text.Encoding]::Unicode
+        Write-OpProgress -Activity $activity -Started $started -Status 'starting'
         & sfc.exe @sfcArgs 2>&1 | ForEach-Object {
             $line = (([string]$_) -replace "`0", '') -replace "[`b`r]", ''
             if ([string]::IsNullOrWhiteSpace($line)) { return }
             $lines.Add($line)
             Write-Log $line 'RAW'
-            if ($line -notmatch '^\s*Verification\s+\d+%\s+complete') {
+            if ($line -match '^\s*Verification\s+(\d+)%\s+complete') {
+                Write-OpProgress -Activity $activity -Started $started -Percent ([double]$Matches[1]) `
+                                 -Status 'verifying'
+            }
+            else {
+                if ($line -match 'Beginning verification phase') {
+                    Write-OpProgress -Activity $activity -Started $started -Percent 0 -Status 'verifying'
+                }
                 Write-Host ('   {0}' -f $line) -ForegroundColor Gray
             }
         }
@@ -707,6 +808,7 @@ function Invoke-Sfc {
     }
     finally {
         [Console]::OutputEncoding = $previous
+        Complete-OpProgress -Activity $activity
     }
 
     $text = $lines -join [Environment]::NewLine
@@ -1026,16 +1128,20 @@ function Close-Target {
             $save = Confirm-YesNo 'Save (commit) the changes made to the mounted image?' $true
         }
         Write-Step ('Unmounting {0} ({1})' -f $TargetToClose.MountDir, $(if ($save) { 'commit' } else { 'discard' }))
+        $unmounted = $false
         try {
             if ($save) { Dismount-WindowsImage -Path $TargetToClose.MountDir -Save -ErrorAction Stop | Out-Null }
             else       { Dismount-WindowsImage -Path $TargetToClose.MountDir -Discard -ErrorAction Stop | Out-Null }
             Write-Ok 'Image unmounted.'
+            $unmounted = $true
         }
         catch {
             Write-Err ("Unmount failed: {0}" -f $_.Exception.Message)
-            Write-Warn 'Run "dism /Cleanup-Mountpoints" once no process is using the mount folder.'
+            Write-Warn 'The mount folder was left in place; the next start-up offers to clean it up.'
         }
-        Remove-Item -LiteralPath $TargetToClose.MountDir -Recurse -Force -ErrorAction SilentlyContinue
+        # Only an unmounted (empty) folder is removed. Deleting a folder that is
+        # still a mount point would destroy the image contents.
+        if ($unmounted) { Remove-WorkDirectory -Path $TargetToClose.MountDir | Out-Null }
     }
 
     if ($TargetToClose.IsoPath) {
@@ -1145,7 +1251,7 @@ function Invoke-ScanHealth {
     $started = Get-Date
     Write-Step 'Scanning the component store for corruption (ScanHealth)'
     Write-Info 'This performs a full scan and normally takes 5-20 minutes.'
-    $r = Invoke-Dism -Arguments @('/Cleanup-Image','/ScanHealth')
+    $r = Invoke-Dism -Arguments @('/Cleanup-Image','/ScanHealth') -Activity 'Scanning the component store (ScanHealth)'
     $state = Get-HealthState -Text $r.Text
     $Script:LastHealth = [pscustomobject]@{
         State  = $state
@@ -1295,7 +1401,7 @@ function Invoke-RestoreHealth {
         Write-Info 'This can take 10-40 minutes. Do not close this window.'
 
         $dismArgs = @('/Cleanup-Image','/RestoreHealth') + $source.SourceArgs
-        $r = Invoke-Dism -Arguments $dismArgs
+        $r = Invoke-Dism -Arguments $dismArgs -Activity 'Restoring component store health (RestoreHealth)'
 
         $succeeded = ($r.ExitCode -eq 0) -or ($r.Text -match 'The restore operation completed successfully')
 
@@ -1744,25 +1850,708 @@ function Invoke-DriverReport {
     Export-Report -Name 'Drivers' -Title 'Component Store - Driver Report' -Summary $summary -Rows $rows
 }
 
+function Show-DriverStoreNotice {
+    <#
+        The two stores are routinely confused, and the difference decides what
+        this menu can and cannot change, so it is spelled out on entry.
+    #>
+    Write-Host ''
+    Write-Host '   NOTE: component store drivers are NOT the same as the driver store.' -ForegroundColor Yellow
+    Write-Host ''
+    Write-Host '     Component store (WinSxS)   In-box drivers that ship as part of Windows. They' -ForegroundColor Gray
+    Write-Host '                                are serviced by Windows updates and cannot be' -ForegroundColor Gray
+    Write-Host '                                added or removed one at a time.' -ForegroundColor Gray
+    Write-Host '     Driver store               System32\DriverStore\FileRepository: the staging' -ForegroundColor Gray
+    Write-Host '                                area Plug and Play installs devices from. Third-' -ForegroundColor Gray
+    Write-Host '                                party, OEM and SDIO drivers added or removed on' -ForegroundColor Gray
+    Write-Host '                                this menu are staged HERE, in the target image.' -ForegroundColor Gray
+
+    $dsm = if ($Script:ScriptPath) { Join-Path (Split-Path $Script:ScriptPath -Parent) 'DriverStoreManager.ps1' }
+    if ($dsm -and (Test-Path -LiteralPath $dsm)) {
+        Write-Host ''
+        Write-Host '     For full driver store inventory, backup and clean-up use DriverStoreManager.ps1.' -ForegroundColor DarkGray
+    }
+}
+
+# ------------------------------------------------ Snappy Driver Installer Origin
+#
+# SDIO is used to FIND and DOWNLOAD drivers only. Scripts run it with
+# "enableinstall off" and "keeptempfiles on": SDIO selects and extracts the
+# drivers but installs nothing, and the extracted folders are then injected
+# into the target with pnputil or DISM like any other driver folder.
+
+# Driver pack filters (the middle part of DP_<filter>_nnnn.7z) for drivers
+# Windows needs to boot and get online. Chipset carries the storage and USB
+# controller drivers. A filter that matches no pack simply selects nothing,
+# which is why each one is selected and extracted separately.
+$Script:SdioEssentialFilters = @('lan', 'wlan-wifi', 'wwan-4g', 'bluetooth', 'massstorage', 'chipset')
+$Script:SdioEssentialPackPattern = '^DP_(LAN|WLAN|WWAN|Bluetooth|MassStorage|Chipset)'
+
+function Get-SdioInstalled {
+    <#  The newest SDIO executable in the SDIO folder, or $null. #>
+    if (-not (Test-Path -LiteralPath $Script:SdioRoot)) { return $null }
+
+    # The XP builds lack the torrent client that the downloads depend on.
+    $pattern = if ([Environment]::Is64BitOperatingSystem) { 'SDIO_x64_R*.exe' } else { 'SDIO_R*.exe' }
+    $exe = Get-ChildItem -LiteralPath $Script:SdioRoot -Filter $pattern -File -ErrorAction SilentlyContinue |
+           Where-Object { $_.Name -match '_R\d+\.exe$' } |
+           Sort-Object { [int]([regex]::Match($_.Name, '_R(\d+)\.exe$').Groups[1].Value) } -Descending |
+           Select-Object -First 1
+    if (-not $exe) { return $null }
+
+    $ver = $null
+    try { $ver = [version]$exe.VersionInfo.FileVersion } catch { }
+    return [pscustomobject]@{ Path = $exe.FullName; Name = $exe.Name; Version = $ver }
+}
+
+function Get-SdioLatest {
+    <#  The newest release linked from the author's page, or $null. #>
+    $old = $ProgressPreference
+    try {
+        $ProgressPreference = 'SilentlyContinue'
+        $page = Invoke-WebRequest -Uri $Script:SdioPageUrl -UseBasicParsing -TimeoutSec 30 -ErrorAction Stop
+        $best = $null
+        foreach ($m in [regex]::Matches($page.Content, '(/downloads/sdio/SDIO_(\d+\.\d+\.\d+\.\d+)\.zip)')) {
+            $v = [version]$m.Groups[2].Value
+            if (-not $best -or $v -gt $best.Version) {
+                $best = [pscustomobject]@{ Version = $v; Url = $Script:SdioSite + $m.Groups[1].Value }
+            }
+        }
+        if (-not $best) { Write-Log 'No SDIO download link was found on the SDIO page.' 'WARN' }
+        return $best
+    }
+    catch {
+        Write-Log ('SDIO version check failed: {0}' -f $_.Exception.Message) 'WARN'
+        return $null
+    }
+    finally { $ProgressPreference = $old }
+}
+
+function Save-UrlWithProgress {
+    <#  Streams a download to disk with a progress bar. Returns $true on success. #>
+    param(
+        [Parameter(Mandatory)][string]$Url,
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Activity
+    )
+
+    $started = Get-Date
+    $resp = $null; $in = $null; $out = $null
+    try {
+        [Net.ServicePointManager]::SecurityProtocol =
+            [Net.ServicePointManager]::SecurityProtocol -bor [Net.SecurityProtocolType]::Tls12
+        $req = [System.Net.HttpWebRequest]::Create($Url)
+        $req.UserAgent = ('{0}/{1}' -f ($Script:AppName -replace '\s', ''), $Script:AppVersion)
+        $req.Timeout   = 60000
+
+        $resp  = $req.GetResponse()
+        $total = $resp.ContentLength
+        $in    = $resp.GetResponseStream()
+        $out   = [IO.File]::Create($Path)
+        $buf   = New-Object byte[] 262144
+        $done  = 0L
+        $last  = [datetime]::MinValue
+
+        while (($n = $in.Read($buf, 0, $buf.Length)) -gt 0) {
+            $out.Write($buf, 0, $n)
+            $done += $n
+            if (((Get-Date) - $last).TotalMilliseconds -ge 250) {
+                $last = Get-Date
+                $pct  = if ($total -gt 0) { $done * 100.0 / $total } else { -1 }
+                Write-OpProgress -Activity $Activity -Started $started -Percent $pct `
+                    -Status ('{0} of {1}' -f (Format-Bytes $done), $(if ($total -gt 0) { Format-Bytes $total } else { 'unknown' }))
+            }
+        }
+        return $true
+    }
+    catch {
+        Write-Err ('Download failed: {0}' -f $_.Exception.Message)
+        if ($out) { $out.Dispose(); $out = $null }
+        Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue
+        return $false
+    }
+    finally {
+        if ($out)  { $out.Dispose() }
+        if ($in)   { $in.Dispose() }
+        if ($resp) { $resp.Close() }
+        Complete-OpProgress -Activity $Activity
+    }
+}
+
+function Initialize-Sdio {
+    <#
+        Makes sure SDIO is present and the latest release. Downloads or
+        updates it when needed (driver packs, indexes and logs are kept), and
+        refuses executables that are not validly signed by the author unless
+        the technician explicitly accepts them.
+
+        Returns the Get-SdioInstalled object, or $null.
+    #>
+    Write-Info 'Checking for Snappy Driver Installer Origin (SDIO)...'
+    $installed = Get-SdioInstalled
+    $latest    = Get-SdioLatest
+
+    if ($installed) { Write-Info ('Installed version : {0}  ({1})' -f $installed.Version, $installed.Path) }
+    else            { Write-Info ('Installed version : none - SDIO has not been downloaded to {0}' -f $Script:SdioRoot) }
+    if ($latest)    { Write-Info ('Latest version    : {0}' -f $latest.Version) }
+    else            { Write-Warn ('The latest version could not be determined from {0}.' -f $Script:SdioPageUrl) }
+
+    if (-not $latest) {
+        if ($installed) { Write-Warn 'Continuing with the installed version.'; return $installed }
+        Write-Err 'SDIO is not installed and could not be downloaded.'
+        Write-Info ('Download it from {0} and extract it to {1}' -f $Script:SdioPageUrl, $Script:SdioRoot)
+        return $null
+    }
+
+    if ($installed -and $installed.Version -and $installed.Version -ge $latest.Version) {
+        Write-Ok 'SDIO is up to date.'
+        return $installed
+    }
+
+    $question = if ($installed) { 'Update SDIO from {0} to {1}?' -f $installed.Version, $latest.Version }
+                else            { 'Download SDIO {0} now?' -f $latest.Version }
+    if (-not (Confirm-YesNo $question $true)) {
+        if ($installed) { Write-Info 'Continuing with the installed version.'; return $installed }
+        return $null
+    }
+
+    $started = Get-Date
+    New-Item -ItemType Directory -Path $Script:SdioRoot -Force | Out-Null
+    $zip     = Join-Path $Script:SdioRoot ('SDIO_{0}.zip' -f $latest.Version)
+    $staging = Join-Path $Script:SdioRoot '_staging'
+
+    try {
+        if (-not (Save-UrlWithProgress -Url $latest.Url -Path $zip -Activity ('Downloading SDIO {0}' -f $latest.Version))) {
+            return $installed
+        }
+
+        if (Test-Path -LiteralPath $staging) { Remove-WorkDirectory -Path $staging | Out-Null }
+        Expand-Archive -LiteralPath $zip -DestinationPath $staging -Force -ErrorAction Stop
+
+        # Tolerate a release that wraps everything in a single top folder.
+        $srcRoot = $staging
+        $top = @(Get-ChildItem -LiteralPath $staging -Force)
+        if ($top.Count -eq 1 -and $top[0].PSIsContainer) { $srcRoot = $top[0].FullName }
+
+        $badSig = @(Get-ChildItem -LiteralPath $srcRoot -Filter '*.exe' -File | Where-Object {
+            $sig = Get-AuthenticodeSignature -LiteralPath $_.FullName
+            ($sig.Status -ne 'Valid') -or ($sig.SignerCertificate.Subject -notmatch 'Glenn Delahoy')
+        })
+        if ($badSig.Count -gt 0) {
+            Write-Warn ('{0} executable(s) in the download are not validly signed by Glenn Delahoy:' -f $badSig.Count)
+            foreach ($b in $badSig) { Write-Host ('     {0}' -f $b.Name) -ForegroundColor Yellow }
+            if (-not (Confirm-YesNo 'Use this download anyway?' $false)) {
+                Add-SessionAction -Category 'Drivers' -Action 'Download SDIO' -Status 'Failed' `
+                    -Result 'Rejected: signature check failed' -Started $started | Out-Null
+                return $installed
+            }
+        }
+        else { Write-Ok 'Signatures verified (Glenn Delahoy).' }
+
+        # robocopy merges into the existing folder, leaving the downloaded
+        # driver packs, indexes and logs untouched.
+        & robocopy.exe $srcRoot $Script:SdioRoot /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NP 2>&1 | Out-Null
+        if ($LASTEXITCODE -ge 8) {
+            Write-Err ('Copying SDIO into place failed (robocopy {0}).' -f $LASTEXITCODE)
+            return $installed
+        }
+    }
+    catch {
+        Write-Err ('SDIO could not be installed: {0}' -f $_.Exception.Message)
+        return $installed
+    }
+    finally {
+        if (Test-Path -LiteralPath $staging) { Remove-WorkDirectory -Path $staging | Out-Null }
+        Remove-Item -LiteralPath $zip -Force -ErrorAction SilentlyContinue
+    }
+
+    $now = Get-SdioInstalled
+    if ($now) {
+        Write-Ok ('SDIO {0} is ready.' -f $now.Version)
+        Add-SessionAction -Category 'Drivers' -Action $(if ($installed) { 'Update SDIO' } else { 'Download SDIO' }) `
+            -Status 'Ok' -Result ([string]$now.Version) -Detail $now.Path -Started $started | Out-Null
+    }
+    return $now
+}
+
+function Read-NewText {
+    <#  Lines appended to a file since the last call, while it is still being written. #>
+    param([Parameter(Mandatory)][string]$Path, [Parameter(Mandatory)][hashtable]$State)
+
+    if (-not (Test-Path -LiteralPath $Path)) { return @() }
+    $pos  = if ($State.ContainsKey($Path)) { [long]$State[$Path] } else { 0L }
+    $read = 0
+    try {
+        $fs = [IO.File]::Open($Path, 'Open', 'Read', 'ReadWrite, Delete')
+        try {
+            if ($fs.Length -le $pos) { return @() }
+            [void]$fs.Seek($pos, 'Begin')
+            $buf  = New-Object byte[] ($fs.Length - $pos)
+            $read = $fs.Read($buf, 0, $buf.Length)
+            $State[$Path] = $pos + $read
+        }
+        finally { $fs.Dispose() }
+    }
+    catch { return @() }
+
+    # SDIO may write UTF-16; dropping the NULs reads it well enough to parse.
+    $text = [Text.Encoding]::UTF8.GetString($buf, 0, $read) -replace "`0", ''
+    return @($text -split "[`r`n]+" | Where-Object { $_.Trim() })
+}
+
+function ConvertTo-SdioPath {
+    <#
+        SDIO script arguments are separated by spaces, so a path containing one
+        is passed in its 8.3 form. The folder must already exist.
+    #>
+    param([Parameter(Mandatory)][string]$Path)
+    if ($Path -notmatch '\s') { return $Path }
+    try { return (New-Object -ComObject Scripting.FileSystemObject).GetFolder($Path).ShortPath }
+    catch { return $Path }
+}
+
+function Invoke-SdioScript {
+    <#
+        Runs SDIO in script mode and turns its progress into a progress bar.
+
+        Script mode writes to a console and to SDIO's log, so both the
+        redirected output and the newest log file are followed. The size of
+        the download and extraction folders is also measured, which keeps the
+        bar informative while SDIO itself is quiet.
+    #>
+    param(
+        [Parameter(Mandatory)][object]$Sdio,
+        [Parameter(Mandatory)][string[]]$ScriptLines,
+        [Parameter(Mandatory)][string]$Activity,
+        [string[]]$WatchDirs = @()
+    )
+
+    $stamp   = Get-Date -Format 'yyyyMMdd_HHmmss'
+    $scripts = Join-Path $Script:SdioRoot 'scripts'
+    $logs    = Join-Path $Script:SdioRoot 'logs'
+    foreach ($d in @($scripts, $logs)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
+
+    $scriptPath = Join-Path $scripts ('csm_{0}.txt' -f $stamp)
+    $stdout     = Join-Path $logs ('csm_{0}_console.txt' -f $stamp)
+    $stderr     = Join-Path $logs ('csm_{0}_errors.txt' -f $stamp)
+    Set-Content -LiteralPath $scriptPath -Value $ScriptLines -Encoding ASCII
+    Write-Log ('SDIO script {0}:{1}{2}' -f $scriptPath, [Environment]::NewLine, ($ScriptLines -join [Environment]::NewLine))
+    Write-Info ('SDIO script : {0}' -f $scriptPath)
+
+    $started = Get-Date
+    $proc = Start-Process -FilePath $Sdio.Path -ArgumentList ('-script:"{0}"' -f $scriptPath) `
+                          -WorkingDirectory $Script:SdioRoot -NoNewWindow -PassThru `
+                          -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+    $null = $proc.Handle   # caches the handle so ExitCode is available afterwards
+
+    $state     = @{}
+    $collected = New-Object System.Collections.Generic.List[string]
+    $percent   = -1
+    $lastLine  = ''
+    $sizeText  = ''
+    $sizeCheck = [datetime]::MinValue
+
+    $readAll = {
+        $sources = New-Object System.Collections.Generic.List[string]
+        $sources.Add($stdout); $sources.Add($stderr)
+        $log = Get-ChildItem -LiteralPath $logs -File -ErrorAction SilentlyContinue |
+               Where-Object { $_.LastWriteTime -ge $started -and $_.Name -notlike 'csm_*' } |
+               Sort-Object LastWriteTime -Descending | Select-Object -First 1
+        if ($log) { $sources.Add($log.FullName) }
+
+        foreach ($src in $sources) {
+            foreach ($line in (Read-NewText -Path $src -State $state)) {
+                $collected.Add($line)
+                Write-Log $line 'RAW'
+                if ($line -match '(\d{1,3}(?:\.\d+)?)\s*%') {
+                    $p = [double]$Matches[1]
+                    if ($p -le 100) { $percent = $p }
+                }
+                $lastLine = $line.Trim()
+            }
+        }
+    }
+
+    try {
+        while (-not $proc.HasExited) {
+            . $readAll
+
+            if ($WatchDirs.Count -gt 0 -and ((Get-Date) - $sizeCheck).TotalSeconds -ge 10) {
+                $sizeCheck = Get-Date
+                $size = 0
+                foreach ($d in $WatchDirs) {
+                    if (Test-Path -LiteralPath $d) {
+                        $size += [double](Get-ChildItem -LiteralPath $d -Recurse -File -Force -ErrorAction SilentlyContinue |
+                                          Measure-Object -Property Length -Sum).Sum
+                    }
+                }
+                $sizeText = '{0} on disk' -f (Format-Bytes $size)
+            }
+
+            $shown  = if ($lastLine.Length -gt 70) { $lastLine.Substring(0, 70) + '...' } else { $lastLine }
+            $status = (@($sizeText, $shown) | Where-Object { $_ }) -join '  |  '
+            Write-OpProgress -Activity $Activity -Started $started -Percent $percent -Status $status
+            Start-Sleep -Milliseconds 500
+        }
+        $proc.WaitForExit()
+        . $readAll
+    }
+    finally {
+        if (-not $proc.HasExited) {
+            try { $proc.Kill() } catch { }
+            Write-Warn 'SDIO was stopped before it finished.'
+        }
+        Complete-OpProgress -Activity $Activity
+    }
+
+    return [pscustomobject]@{
+        ExitCode   = $proc.ExitCode
+        Lines      = $collected.ToArray()
+        ScriptPath = $scriptPath
+        Completed  = [bool]($collected | Where-Object { $_ -match 'CSM-SDIO-COMPLETE' })
+        Failed     = [bool]($collected | Where-Object { $_ -match 'CSM-SDIO-FAILED' })
+    }
+}
+
+function Expand-SdioPacks {
+    <#  Extracts whole driver packs with SDIO's built-in 7-Zip, with a progress bar. #>
+    param(
+        [Parameter(Mandatory)][object]$Sdio,
+        [Parameter(Mandatory)][object[]]$Packs,
+        [Parameter(Mandatory)][string]$Destination
+    )
+
+    $activity = 'Extracting {0} driver pack(s)' -f $Packs.Count
+    $started  = Get-Date
+    $failed   = 0
+    try {
+        for ($i = 0; $i -lt $Packs.Count; $i++) {
+            $pack = $Packs[$i]
+            Write-OpProgress -Activity $activity -Started $started -Percent ($i * 100.0 / $Packs.Count) `
+                -Status ('{0} of {1}: {2}' -f ($i + 1), $Packs.Count, $pack.Name)
+            $out = Join-Path $Destination $pack.BaseName
+            $p = Start-Process -FilePath $Sdio.Path -WorkingDirectory $Script:SdioRoot -NoNewWindow -Wait -PassThru `
+                    -ArgumentList @('-7z', 'x', ('"{0}"' -f $pack.FullName), ('-o"{0}"' -f $out), '-y')
+            if ($p.ExitCode -ne 0) {
+                $failed++
+                Write-Warn ('{0}: 7-Zip exit code {1}' -f $pack.Name, $p.ExitCode)
+            }
+        }
+    }
+    finally { Complete-OpProgress -Activity $activity }
+
+    Write-Info ('{0} pack(s) extracted, {1} failed.' -f ($Packs.Count - $failed), $failed)
+}
+
+function Import-DriverFolder {
+    <#
+        Adds every driver package under a folder to the current target, with a
+        progress bar: staged into the running system's driver store with
+        pnputil, or injected into an offline image's driver store with DISM.
+    #>
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [Parameter(Mandatory)][string]$Source
+    )
+
+    if (-not (Test-TargetWritable)) { return }
+
+    $infs = @(Get-ChildItem -LiteralPath $Path -Filter '*.inf' -File -Recurse -ErrorAction SilentlyContinue)
+    if ($infs.Count -eq 0) { Write-Warn 'No .inf driver packages were found to add.'; return }
+
+    $started  = Get-Date
+    $activity = 'Adding {0} driver package(s) to the target driver store' -f $infs.Count
+    Write-Step $activity
+
+    if ($Script:Target.Kind -eq 'Online') {
+        $installNow = Confirm-YesNo 'Also install them on matching devices now (not just stage them)?' $false
+        $pnpArgs = @('/add-driver', (Join-Path $Path '*.inf'), '/subdirs')
+        if ($installNow) { $pnpArgs += '/install' }
+        Write-Info ('pnputil.exe {0}' -f ($pnpArgs -join ' '))
+
+        $n = 0
+        $out = New-Object System.Collections.Generic.List[string]
+        try {
+            Write-OpProgress -Activity $activity -Started $started -Status 'starting'
+            & pnputil.exe @pnpArgs 2>&1 | ForEach-Object {
+                $line = [string]$_
+                $out.Add($line)
+                Write-Log $line 'RAW'
+                if ($line -match '^\s*Adding driver package') {
+                    $n++
+                    Write-OpProgress -Activity $activity -Started $started `
+                        -Percent ([math]::Min(100, ($n - 1) * 100.0 / $infs.Count)) `
+                        -Status ('package {0} of {1}' -f $n, $infs.Count)
+                }
+            }
+            $code = $LASTEXITCODE
+        }
+        finally { Complete-OpProgress -Activity $activity }
+
+        $added = ($out | Where-Object { $_ -match 'Added driver packages\s*:\s*(\d+)' } | Select-Object -Last 1)
+        $addedCount = if ($added -and $added -match '(\d+)\s*$') { [int]$Matches[1] } else { $null }
+        if ($code -in @(0, 3010)) {
+            Write-Ok ('pnputil finished: {0} of {1} package(s) added.' -f $(if ($null -ne $addedCount) { $addedCount } else { '?' }), $infs.Count)
+            if ($code -eq 3010) { Write-Info 'A restart is required to complete the installation.' }
+        }
+        else {
+            Write-Warn ('pnputil finished with exit code {0}; some packages were not added.' -f $code)
+            Write-Info 'Packages for other hardware or architectures are commonly rejected; see the log.'
+        }
+        Add-SessionAction -Category 'Drivers' -Action ('Add drivers ({0})' -f $Source) `
+            -Status $(if ($code -in @(0, 3010)) { 'Ok' } else { 'Warning' }) -ExitCode $code -Started $started `
+            -Result ('{0} of {1} package(s) staged' -f $(if ($null -ne $addedCount) { $addedCount } else { '?' }), $infs.Count) `
+            -Detail $Path | Out-Null
+        return
+    }
+
+    $unsigned = Confirm-YesNo 'Allow unsigned drivers (ForceUnsigned)?' $false
+    $dismArgs = @('/Add-Driver', ('/Driver:{0}' -f $Path), '/Recurse')
+    if ($unsigned) { $dismArgs += '/ForceUnsigned' }
+
+    $r  = Invoke-Dism -Arguments $dismArgs -Quiet -Activity $activity
+    $ok = @($r.Lines | Where-Object { $_ -match 'successfully installed' }).Count
+
+    if ($r.ExitCode -eq 0) { Write-Ok ('{0} of {1} driver package(s) added.' -f $ok, $infs.Count) }
+    else {
+        Write-Warn ('{0} of {1} driver package(s) added; DISM exit code {2}.' -f $ok, $infs.Count, $r.ExitCode)
+        Write-Info 'Packages for other hardware or architectures are commonly rejected.'
+        Write-Info ('Details: {0}\Logs\DISM\dism.log' -f $Script:Target.WindowsDir)
+    }
+    Add-SessionAction -Category 'Drivers' -Action ('Add drivers ({0})' -f $Source) `
+        -Status $(if ($r.ExitCode -eq 0) { 'Ok' } else { 'Warning' }) -ExitCode $r.ExitCode -Started $started `
+        -Result ('{0} of {1} package(s) added' -f $ok, $infs.Count) -Detail $Path | Out-Null
+}
+
+function Invoke-SdioDriverDownload {
+    <#
+        Downloads drivers with SDIO and offers to add them to the target.
+
+          ThisMachine  newest driver for every device in this computer
+          Essential    only boot/online-critical drivers for this computer
+          AllPacks     every SDIO driver pack, for all hardware
+    #>
+    param([Parameter(Mandatory)][ValidateSet('ThisMachine','Essential','AllPacks')][string]$Mode)
+
+    $title = switch ($Mode) {
+        'ThisMachine' { 'Download the latest drivers for this machine' }
+        'Essential'   { 'Download the essential drivers for this machine' }
+        'AllPacks'    { 'Download all driver packs for all machines and devices' }
+    }
+    Write-Step ('{0} (Snappy Driver Installer Origin)' -f $title)
+    $started = Get-Date
+
+    switch ($Mode) {
+        'ThisMachine' {
+            Write-Info 'SDIO scans this computer''s hardware, downloads the driver packs holding the newest'
+            Write-Info 'matching driver for every device, and extracts just those drivers.'
+        }
+        'Essential' {
+            Write-Info 'Only the drivers Windows needs to boot and get online are fetched: network (LAN and'
+            Write-Info 'cellular), Wi-Fi, Bluetooth, mass storage and chipset (storage and USB controllers).'
+        }
+        'AllPacks' {
+            Write-Warn 'Every SDIO driver pack will be downloaded: drivers for virtually all hardware from'
+            Write-Warn 'all vendors. This is tens of gigabytes and can take several hours.'
+        }
+    }
+    if ($Mode -ne 'AllPacks' -and $Script:Target.Kind -ne 'Online') {
+        Write-Warn 'Drivers are matched to the hardware of THIS computer, not to whatever hardware the'
+        Write-Warn 'selected offline store will run on.'
+    }
+    Write-Info 'SDIO downloads with its built-in BitTorrent client (port 50171). Some networks block'
+    Write-Info 'or do not permit peer-to-peer traffic.'
+
+    if (-not (Confirm-YesNo 'Continue?' $true)) {
+        Add-SessionAction -Category 'Drivers' -Action $title -Status 'Declined' -Result 'Declined before start' | Out-Null
+        return
+    }
+
+    $sdio = Initialize-Sdio
+    if (-not $sdio) {
+        Add-SessionAction -Category 'Drivers' -Action $title -Status 'Failed' -Result 'SDIO unavailable' -Started $started | Out-Null
+        return
+    }
+
+    # --- space ---------------------------------------------------------------
+    $need = if ($Mode -eq 'AllPacks') { 60GB } else { 5GB }
+    $free = (Get-Item -LiteralPath $Script:SdioRoot).PSDrive.Free
+    Write-Info ('Free space on {0}: {1}' -f $Script:SdioRoot, (Format-Bytes $free))
+    if ($free -lt $need) {
+        Write-Warn ('Less than {0} is free; the download may fail part-way.' -f (Format-Bytes $need))
+        if (-not (Confirm-YesNo 'Continue anyway?' $false)) {
+            Add-SessionAction -Category 'Drivers' -Action $title -Status 'Declined' -Result 'Declined at the free-space warning' | Out-Null
+            return
+        }
+    }
+
+    # --- folders -------------------------------------------------------------
+    $drivers = Join-Path $Script:SdioRoot 'drivers'
+    $indexes = Join-Path $Script:SdioRoot 'indexes'
+    $logs    = Join-Path $Script:SdioRoot 'logs'
+    $extract = Join-Path $Script:SdioRoot ('extracted\{0}_{1:yyyyMMdd_HHmmss}' -f $Mode, (Get-Date))
+    foreach ($d in @($drivers, $indexes, $logs, $extract)) { New-Item -ItemType Directory -Path $d -Force | Out-Null }
+
+    # --- script ------------------------------------------------------------------
+    $lines = New-Object System.Collections.Generic.List[string]
+    foreach ($l in @(
+        ('# Generated by {0} {1} - {2}' -f $Script:AppName, $Script:AppVersion, $Mode),
+        'verbose 8576',
+        ('logdir {0}'     -f (ConvertTo-SdioPath $logs)),
+        'logging on',
+        ('drpdir {0}'     -f (ConvertTo-SdioPath $drivers)),
+        ('indexdir {0}'   -f (ConvertTo-SdioPath $indexes)),
+        ('extractdir {0}' -f (ConvertTo-SdioPath $extract)),
+        'keeptempfiles on',
+        'enableinstall off',
+        'init',
+        'checkupdates',
+        'onerror goto :failed',
+        'get indexes',
+        'onerror goto :failed',
+        'init',
+        'checkupdates',
+        'onerror goto :failed')) { $lines.Add($l) }
+
+    switch ($Mode) {
+        'ThisMachine' {
+            # "install" with installation disabled downloads and extracts only.
+            $lines.Add('select missing newer current better')
+            $lines.Add('install')
+        }
+        'Essential' {
+            for ($i = 0; $i -lt $Script:SdioEssentialFilters.Count; $i++) {
+                $lines.Add(('echo Essential drivers: {0}' -f $Script:SdioEssentialFilters[$i]))
+                $lines.Add(('select missing newer current better {0}' -f $Script:SdioEssentialFilters[$i]))
+                $lines.Add(('onerror goto :next{0}' -f $i))
+                $lines.Add('install')
+                $lines.Add((':next{0}' -f $i))
+            }
+        }
+        'AllPacks' {
+            $lines.Add('get driverpacks all')
+            $lines.Add('onerror goto :failed')
+        }
+    }
+    foreach ($l in @('echo CSM-SDIO-COMPLETE', 'end', ':failed', 'echo CSM-SDIO-FAILED', 'end')) { $lines.Add($l) }
+
+    $packsBefore = @{}
+    Get-ChildItem -LiteralPath $drivers -Filter '*.7z' -File -Recurse -ErrorAction SilentlyContinue |
+        ForEach-Object { $packsBefore[$_.FullName] = $_.LastWriteTimeUtc }
+
+    $r = Invoke-SdioScript -Sdio $sdio -ScriptLines $lines.ToArray() -Activity ('SDIO: {0}' -f $title) `
+                           -WatchDirs @($drivers, $extract)
+
+    if ($r.Failed) {
+        Write-Err 'SDIO could not fetch its update information (checkupdates / get indexes failed).'
+        Write-Info 'Check the internet connection and that BitTorrent traffic is allowed on this network.'
+    }
+    Write-Info ('SDIO exit code {0}. Logs: {1}' -f $r.ExitCode, $logs)
+
+    $packs    = @(Get-ChildItem -LiteralPath $drivers -Filter '*.7z' -File -Recurse -ErrorAction SilentlyContinue)
+    $newPacks = @($packs | Where-Object {
+        -not $packsBefore.ContainsKey($_.FullName) -or $packsBefore[$_.FullName] -ne $_.LastWriteTimeUtc })
+
+    # --- all packs: optional import ---------------------------------------------
+    if ($Mode -eq 'AllPacks') {
+        $size = [double]($packs | Measure-Object -Property Length -Sum).Sum
+        if ($packs.Count -eq 0) {
+            Write-Err 'No driver packs were downloaded.'
+            Add-SessionAction -Category 'Drivers' -Action $title -Status 'Failed' -ExitCode $r.ExitCode `
+                -Result 'No driver packs' -Started $started | Out-Null
+            return
+        }
+        Write-Ok ('{0} driver pack(s) available in {1} ({2}); {3} new or updated.' -f
+            $packs.Count, $drivers, (Format-Bytes $size), $newPacks.Count)
+        Add-SessionAction -Category 'Drivers' -Action $title -Status $(if ($r.Failed) { 'Warning' } else { 'Ok' }) `
+            -ExitCode $r.ExitCode -Started $started `
+            -Result ('{0} pack(s), {1}' -f $packs.Count, (Format-Bytes $size)) -Detail $drivers | Out-Null
+
+        Write-Host ''
+        Write-Warn 'Importing every pack adds drivers for hardware this image will never see. It makes the'
+        Write-Warn 'image far larger and slower to service, and can take hours.'
+        Write-Host ''
+        Write-Host ('   Import the driver packs into {0}?' -f $Script:Target.Label) -ForegroundColor White
+        Write-Host '   [1] Import all driver packs' -ForegroundColor Gray
+        Write-Host '   [2] Import only the essential packs (network, Wi-Fi, Bluetooth, storage, chipset)' -ForegroundColor Gray
+        Write-Host '   [0] Do not import - keep the packs for later' -ForegroundColor Gray
+        $pick = Read-Choice -Valid @('0','1','2')
+        if ($pick -eq '0') { Write-Info ('The driver packs remain in {0}' -f $drivers); return }
+
+        $chosen = if ($pick -eq '1') { $packs } else { @($packs | Where-Object { $_.Name -match $Script:SdioEssentialPackPattern }) }
+        if ($chosen.Count -eq 0) { Write-Warn 'No matching driver packs were found.'; return }
+
+        Expand-SdioPacks -Sdio $sdio -Packs $chosen -Destination $extract
+        Import-DriverFolder -Path $extract -Source $(if ($pick -eq '1') { 'SDIO, all packs' } else { 'SDIO, essential packs' })
+        Write-Info ('Extracted drivers kept at {0}' -f $extract)
+        return
+    }
+
+    # --- this machine / essential ---------------------------------------------
+    $infs = @(Get-ChildItem -LiteralPath $extract -Filter '*.inf' -File -Recurse -ErrorAction SilentlyContinue)
+
+    if ($infs.Count -eq 0) {
+        $fallback = @($newPacks | Where-Object { $Mode -ne 'Essential' -or $_.Name -match $Script:SdioEssentialPackPattern })
+        if ($fallback.Count -eq 0) {
+            Write-Warn 'SDIO did not download or extract any drivers.'
+            Write-Info 'Either every device already has its newest driver, or the download did not complete;'
+            Write-Info ('the SDIO log in {0} shows which.' -f $logs)
+            Add-SessionAction -Category 'Drivers' -Action $title -Status 'Warning' -ExitCode $r.ExitCode `
+                -Result 'No drivers downloaded' -Started $started | Out-Null
+            return
+        }
+        Write-Warn ('SDIO downloaded {0} driver pack(s) but did not leave extracted drivers behind.' -f $fallback.Count)
+        Write-Info 'The whole packs can be extracted instead; they include drivers for other hardware too.'
+        if (-not (Confirm-YesNo 'Extract the downloaded packs?' $true)) {
+            Write-Info ('The packs remain in {0}' -f $drivers); return
+        }
+        Expand-SdioPacks -Sdio $sdio -Packs $fallback -Destination $extract
+        $infs = @(Get-ChildItem -LiteralPath $extract -Filter '*.inf' -File -Recurse -ErrorAction SilentlyContinue)
+    }
+
+    Write-Ok ('{0} driver package(s) downloaded and extracted to {1}' -f $infs.Count, $extract)
+    Add-SessionAction -Category 'Drivers' -Action $title -Status 'Ok' -ExitCode $r.ExitCode -Started $started `
+        -Result ('{0} driver package(s)' -f $infs.Count) -Detail $extract | Out-Null
+
+    if (Confirm-YesNo ('Add the downloaded drivers to {0}?' -f $Script:Target.Label) $true) {
+        Import-DriverFolder -Path $extract -Source $(if ($Mode -eq 'Essential') { 'SDIO, essential' } else { 'SDIO, this machine' })
+    }
+    else { Write-Info ('The drivers were kept at {0}' -f $extract) }
+}
+
 function Show-DriversMenu {
+    Show-DriverStoreNotice
+
     while ($true) {
         Write-Banner 'Manage component store drivers'
         Write-TargetLine
+        Write-Host '  Drivers added or removed here are staged in the target''s DRIVER STORE, not in WinSxS.' -ForegroundColor DarkYellow
         Write-Host ''
         Write-Host '   [1] List third-party drivers in the component store' -ForegroundColor Gray
         Write-Host '   [2] Install a third-party driver into the component store' -ForegroundColor Gray
         Write-Host '   [3] Uninstall third-party drivers from the component store' -ForegroundColor Gray
         Write-Host "   [4] Add the active system's driver store to the component store" -ForegroundColor Gray
         Write-Host '   [5] Create a report of the component store drivers' -ForegroundColor Gray
+        Write-Host ''
+        Write-Host '   Download drivers with Snappy Driver Installer Origin (SDIO)' -ForegroundColor White
+        Write-Host '   [6] Download the latest drivers for this machine' -ForegroundColor Gray
+        Write-Host '   [7] Download only the essential drivers for this machine (network, Wi-Fi, Bluetooth, storage)' -ForegroundColor Gray
+        Write-Host '   [8] Download all driver packs for all machines and devices (tens of GB)' -ForegroundColor Gray
+        Write-Host ''
+        Write-Host '   [9] Explain component store drivers vs. the driver store' -ForegroundColor Gray
         Write-Host '   [0] Back to the main menu' -ForegroundColor Gray
 
-        switch (Read-Choice -Valid @('0','1','2','3','4','5')) {
+        switch (Read-Choice -Valid @('0','1','2','3','4','5','6','7','8','9')) {
             '0' { return }
             '1' { Invoke-ListDrivers;           Wait-Key }
             '2' { Invoke-AddDriver;             Wait-Key }
             '3' { Invoke-RemoveDriver;          Wait-Key }
             '4' { Invoke-AddActiveDriverStore;  Wait-Key }
             '5' { Invoke-DriverReport;          Wait-Key }
+            '6' { Invoke-SdioDriverDownload -Mode ThisMachine; Wait-Key }
+            '7' { Invoke-SdioDriverDownload -Mode Essential;   Wait-Key }
+            '8' { Invoke-SdioDriverDownload -Mode AllPacks;    Wait-Key }
+            '9' { Show-DriverStoreNotice;       Wait-Key }
         }
     }
 }
@@ -2127,12 +2916,22 @@ function Invoke-AnalyzeComponentStore {
     Write-Step 'Analyzing the component store (AnalyzeComponentStore)'
     Write-Info 'This can take a few minutes.'
 
-    $r = Invoke-Dism -Arguments @('/Cleanup-Image','/AnalyzeComponentStore') -Quiet
+    $r = Invoke-Dism -Arguments @('/Cleanup-Image','/AnalyzeComponentStore') -Quiet -Activity 'Analyzing the component store (AnalyzeComponentStore)'
 
     if ($r.ExitCode -ne 0) {
         Write-Err ('DISM returned exit code {0}.' -f $r.ExitCode)
         foreach ($l in ($r.Lines | Select-Object -Last 8)) { Write-Host ('   {0}' -f $l) -ForegroundColor DarkGray }
         return $null
+    }
+
+    # DISM prints its own version and the serviced image's version in the
+    # banner, ahead of the WinSxS section.
+    $dismVersion  = ''
+    $imageVersion = ''
+    foreach ($line in $r.Lines) {
+        if (-not $dismVersion  -and $line -match '^\s*Version\s*:\s*(\S+)')       { $dismVersion  = $Matches[1] }
+        if (-not $imageVersion -and $line -match '^\s*Image Version\s*:\s*(\S+)') { $imageVersion = $Matches[1] }
+        if ($line -match 'Component Store \(WinSxS\) information') { break }
     }
 
     $info = [ordered]@{}
@@ -2161,9 +2960,37 @@ function Invoke-AnalyzeComponentStore {
         Info        = $info
         Recommended = ($recommendedRaw -match '^(Yes|True)$')
         Reclaimable = [int]($info['Number of Reclaimable Packages'] -as [int])
+        Dism        = Get-DismVersionInfo -ReportedVersion $dismVersion
+        ImageVersion = $imageVersion
         Text        = $r.Text
     }
     return $Script:LastAnalysis
+}
+
+function Get-DismVersionInfo {
+    <#
+        The DISM that produced a result. The version DISM prints is preferred;
+        the file version of dism.exe is the fallback, and the Dism PowerShell
+        module is recorded as well because the reports use it too.
+    #>
+    param([string]$ReportedVersion = '')
+
+    $exe = Get-Command dism.exe -ErrorAction SilentlyContinue
+    $fileVersion = ''
+    $exePath     = ''
+    if ($exe) {
+        $exePath = $exe.Source
+        try { $fileVersion = (Get-Item -LiteralPath $exePath).VersionInfo.ProductVersion } catch { }
+    }
+
+    $module = Get-Module -ListAvailable -Name Dism | Sort-Object Version -Descending | Select-Object -First 1
+
+    return [pscustomobject]@{
+        Version       = $(if ($ReportedVersion) { $ReportedVersion } else { $fileVersion })
+        FileVersion   = $fileVersion
+        Path          = $exePath
+        ModuleVersion = $(if ($module) { [string]$module.Version } else { 'not available' })
+    }
 }
 
 function Show-AnalysisResult {
@@ -2181,7 +3008,7 @@ function Show-AnalysisResult {
         Write-Host ('   {0,-50} {1}' -f $k, $Analysis.Info[$k]) -ForegroundColor $color
     }
     Write-Host ('   ' + ('-' * 72)) -ForegroundColor DarkGray
-    Write-Host ('   Analyzed {0:yyyy-MM-dd HH:mm:ss}' -f $Analysis.When) -ForegroundColor DarkGray
+    Write-Host ('   Analyzed {0:yyyy-MM-dd HH:mm:ss} with DISM {1}' -f $Analysis.When, $Analysis.Dism.Version) -ForegroundColor DarkGray
 
     Write-Host ''
     if ($Analysis.Recommended) {
@@ -2274,20 +3101,33 @@ function Invoke-SpSuperseded {
 function Invoke-AnalysisReport {
     if (-not $Script:LastAnalysis) { Write-Warn 'Run the analysis first.'; return }
 
-    $rows = foreach ($k in $Script:LastAnalysis.Info.Keys) {
-        [pscustomobject]@{ Property = $k; Value = $Script:LastAnalysis.Info[$k] }
+    $dism = $Script:LastAnalysis.Dism
+
+    # The DISM rows are repeated in the detail table so the CSV, which carries
+    # no summary block, still records which DISM produced the figures.
+    $rows = New-Object System.Collections.Generic.List[object]
+    foreach ($k in $Script:LastAnalysis.Info.Keys) {
+        $rows.Add([pscustomobject]@{ Property = $k; Value = $Script:LastAnalysis.Info[$k] })
     }
+    $rows.Add([pscustomobject]@{ Property = 'DISM version';           Value = $dism.Version })
+    $rows.Add([pscustomobject]@{ Property = 'DISM file version';      Value = $dism.FileVersion })
+    $rows.Add([pscustomobject]@{ Property = 'DISM executable';        Value = $dism.Path })
+    $rows.Add([pscustomobject]@{ Property = 'DISM PowerShell module'; Value = $dism.ModuleVersion })
+    $rows.Add([pscustomobject]@{ Property = 'Image version';          Value = $Script:LastAnalysis.ImageVersion })
 
     $summary = [ordered]@{
         'Target'             = $Script:Target.Label
         'Windows directory'  = $Script:Target.WindowsDir
+        'DISM version'       = $dism.Version
+        'DISM executable'    = $dism.Path
+        'Image version'      = $(if ($Script:LastAnalysis.ImageVersion) { $Script:LastAnalysis.ImageVersion } else { 'not reported' })
         'Cleanup recommended'= $(if ($Script:LastAnalysis.Recommended) { 'Yes' } else { 'No' })
         'Reclaimable packages' = $Script:LastAnalysis.Reclaimable
         'Health (last known)'  = $(if ($Script:LastHealth) { $Script:LastHealth.State } else { 'not checked' })
         'Analyzed'           = $Script:LastAnalysis.When.ToString('yyyy-MM-dd HH:mm:ss')
     }
 
-    Export-Report -Name 'Analysis' -Title 'Component Store - Analysis Report' -Summary $summary -Rows $rows
+    Export-Report -Name 'Analysis' -Title 'Component Store - Analysis Report' -Summary $summary -Rows $rows.ToArray()
 }
 
 function Show-AnalyzeMenu {
@@ -3395,6 +4235,7 @@ function New-VssShadowLink {
         }
 
         Write-Ok ('Shadow copy ready ({0}).' -f $result.ShadowID)
+        Add-ShadowRecord -ShadowId $result.ShadowID -Link $link -Volume $Volume
         return [pscustomobject]@{ ShadowId = $result.ShadowID; Link = $link }
     }
     catch {
@@ -3414,8 +4255,54 @@ function Remove-VssShadowLink {
         Get-CimInstance Win32_ShadowCopy -Filter ("ID='{0}'" -f $Shadow.ShadowId) -ErrorAction Stop |
             Remove-CimInstance -ErrorAction Stop
         Write-Info 'Shadow copy released.'
+        Remove-ShadowRecord -ShadowId $Shadow.ShadowId
     }
     catch { Write-Warn ("Could not release the shadow copy: {0}" -f $_.Exception.Message) }
+}
+
+function Get-ShadowRecords {
+    if (-not (Test-Path -LiteralPath $Script:ShadowStateFile)) { return @() }
+    # Assigned before wrapping: on 5.1 a piped ConvertFrom-Json emits a JSON
+    # array as one object, which @() would nest instead of flatten.
+    try {
+        $parsed = Get-Content -LiteralPath $Script:ShadowStateFile -Raw | ConvertFrom-Json
+        return @($parsed | Where-Object { $_ })
+    }
+    catch {
+        Write-Log ('Unreadable shadow state file: {0}' -f $_.Exception.Message) 'WARN'
+        return @()
+    }
+}
+
+function Save-ShadowRecords {
+    param([AllowEmptyCollection()][object[]]$Records)
+    try {
+        if ($Records.Count -eq 0) {
+            Remove-Item -LiteralPath $Script:ShadowStateFile -Force -ErrorAction SilentlyContinue
+        }
+        else {
+            ConvertTo-Json -InputObject $Records -Depth 3 |
+                Set-Content -LiteralPath $Script:ShadowStateFile -Encoding UTF8
+        }
+    }
+    catch { Write-Log ('Could not write the shadow state file: {0}' -f $_.Exception.Message) 'WARN' }
+}
+
+function Add-ShadowRecord {
+    param([string]$ShadowId, [string]$Link, [string]$Volume)
+    $records = @(Get-ShadowRecords) + [pscustomobject]@{
+        ShadowId  = $ShadowId
+        Link      = $Link
+        Volume    = $Volume
+        Created   = (Get-Date).ToString('o')
+        SessionId = $Script:SessionId
+    }
+    Save-ShadowRecords -Records $records
+}
+
+function Remove-ShadowRecord {
+    param([string]$ShadowId)
+    Save-ShadowRecords -Records @(Get-ShadowRecords | Where-Object { $_.ShadowId -ne $ShadowId })
 }
 
 function Invoke-ImageBackup {
@@ -3515,7 +4402,7 @@ function Invoke-ImageBackup {
                 $sourceLabel, (Get-Date).ToString('yyyy-MM-dd HH:mm'), $Script:SessionId
 
         Write-Info 'Capturing. DISM reports progress slowly; this is normal.'
-        $res = Invoke-Dism -NoScope -Arguments @(
+        $res = Invoke-Dism -NoScope -Activity 'Creating the component store backup image (.wim)' -Arguments @(
             '/Capture-Image',
             ('/ImageFile:{0}' -f $wimPath),
             ('/CaptureDir:{0}' -f $captureDir),
@@ -3652,7 +4539,7 @@ function Invoke-VerifyBackup {
 
     if ($set.HasImage) {
         Write-Info 'Checking image integrity (this reads the whole WIM)...'
-        $res = Invoke-Dism -NoScope -Arguments @(
+        $res = Invoke-Dism -NoScope -Activity 'Verifying the backup image integrity' -Arguments @(
             '/Get-ImageInfo', ('/ImageFile:{0}' -f $set.WimPath), '/Index:1', '/CheckIntegrity')
         if ($res.ExitCode -ne 0) { $issues.Add("Image integrity check failed (dism exit $($res.ExitCode))") }
         else { Write-Ok 'Image integrity check passed.' }
@@ -4161,18 +5048,354 @@ function Show-MainMenu {
     }
 }
 
-function Test-StaleMounts {
-    try { $mounted = @(Get-WindowsImage -Mounted -ErrorAction Stop) } catch { return }
-    $stale = @($mounted | Where-Object { $_.MountStatus -ne 'Ok' })
-    if ($stale.Count -eq 0) { return }
+#endregion
 
-    Write-Warn ('{0} stale image mount point(s) were found.' -f $stale.Count)
-    foreach ($m in $stale) { Write-Info ('  {0}  ({1})' -f $m.Path, $m.MountStatus) }
-    if (Confirm-YesNo 'Clean them up now (dism /Cleanup-Mountpoints)?' $true) {
-        & dism.exe /English /Cleanup-Mountpoints 2>&1 | ForEach-Object { Write-Log ([string]$_) 'RAW' }
-        Write-Ok 'Mount points cleaned up.'
+#region ------------------------------------------ Previous-session leftovers
+
+function Remove-WorkDirectory {
+    <#
+        Deletes a leftover working folder WITHOUT following links. rmdir /s
+        removes junctions and symlinks instead of descending into them. A
+        recursive Remove-Item on Windows PowerShell 5.1 can follow a junction
+        inside a half-unmounted image (e.g. "Documents and Settings" ->
+        C:\Users) into the LIVE system and delete from there.
+    #>
+    param([Parameter(Mandatory)][string]$Path)
+    & cmd.exe /c rmdir /s /q "$Path" 2>&1 | Out-Null
+    return -not [bool](Get-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue)
+}
+
+function Get-VolumeDisplayName {
+    <#  \\?\Volume{guid}\ -> C: where the volume has a letter. #>
+    param([string]$VolumeName)
+    try {
+        $v = Get-CimInstance Win32_Volume -ErrorAction Stop |
+             Where-Object { $_.DeviceID -eq $VolumeName } | Select-Object -First 1
+        if ($v -and $v.DriveLetter) { return $v.DriveLetter }
+    }
+    catch { }
+    return $VolumeName
+}
+
+function Remove-LeftoverShadow {
+    param([Parameter(Mandatory)][object]$Row)
+
+    if ($Row.Link -and (Get-Item -LiteralPath $Row.Link -Force -ErrorAction SilentlyContinue)) {
+        & cmd.exe /c rmdir "$($Row.Link)" 2>&1 | Out-Null
+    }
+    try {
+        $Row.Shadow | Remove-CimInstance -ErrorAction Stop
+        Remove-ShadowRecord -ShadowId $Row.Id
+        Write-Ok ('Shadow copy {0} destroyed.' -f $Row.Id)
+        Add-SessionAction -Category 'Startup' -Action 'Destroyed leftover shadow copy' -Status 'Ok' `
+            -Result $Row.Volume -Detail $Row.Id | Out-Null
+        return $true
+    }
+    catch {
+        Write-Err ('Could not destroy {0}: {1}' -f $Row.Id, $_.Exception.Message)
+        Write-Info ('It can be removed by hand with: vssadmin delete shadows /shadow={0}' -f $Row.Id)
+        Add-SessionAction -Category 'Startup' -Action 'Destroy leftover shadow copy' -Status 'Failed' `
+            -Result $Row.Volume -Detail ('{0}: {1}' -f $Row.Id, $_.Exception.Message) | Out-Null
+        return $false
     }
 }
+
+function Test-LeftoverShadowCopies {
+    <#
+        Finds VSS shadow copies left behind by a previous session, typically
+        because the tool was closed or crashed during an image backup. A
+        stranded shadow copy keeps consuming shadow storage on the volume, and
+        copy-on-write slows writes to it, until it is deleted.
+
+        A shadow is this tool's when it is recorded in the shadow state file or
+        a shadow_* link in the mount folder points at it. Other client-
+        accessible, writer-less shadows (the kind this tool creates) are listed
+        separately and default to KEEP, because another program may own them.
+        System Restore points are created with writers and are never listed.
+    #>
+    try { $all = @(Get-CimInstance Win32_ShadowCopy -ErrorAction Stop) }
+    catch {
+        Write-Log ('Shadow copy enumeration failed: {0}' -f $_.Exception.Message) 'WARN'
+        return
+    }
+
+    $records = @(Get-ShadowRecords)
+
+    # Drop bookkeeping for shadows that no longer exist.
+    $liveIds = @($all | ForEach-Object { [string]$_.ID })
+    $stillLive = @($records | Where-Object { $liveIds -contains [string]$_.ShadowId })
+    if ($stillLive.Count -ne $records.Count) { Save-ShadowRecords -Records $stillLive }
+    $records = $stillLive
+
+    $linked = @{}
+    Get-ChildItem -LiteralPath $Script:MountRoot -Filter 'shadow_*' -Force -ErrorAction SilentlyContinue |
+        Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint } |
+        ForEach-Object {
+            $t = [string](@($_.Target) | Select-Object -First 1)
+            if ($t) { $linked[$t.TrimEnd('\')] = $_.FullName }
+        }
+
+    $ours  = New-Object System.Collections.Generic.List[object]
+    $other = New-Object System.Collections.Generic.List[object]
+    foreach ($s in $all) {
+        $rec  = $records | Where-Object { [string]$_.ShadowId -eq [string]$s.ID } | Select-Object -First 1
+        $link = $linked[([string]$s.DeviceObject).TrimEnd('\')]
+        $row  = [pscustomobject]@{
+            Shadow  = $s
+            Id      = [string]$s.ID
+            Created = $s.InstallDate
+            Volume  = Get-VolumeDisplayName -VolumeName $s.VolumeName
+            Link    = $(if ($link) { $link } elseif ($rec) { [string]$rec.Link } else { $null })
+        }
+        if ($rec -or $link)                          { $ours.Add($row) }
+        elseif ($s.ClientAccessible -and $s.NoWriters) { $other.Add($row) }
+    }
+
+    if ($ours.Count -eq 0 -and $other.Count -eq 0) { return }
+
+    Write-Banner 'Shadow copies from a previous session'
+
+    if ($ours.Count -gt 0) {
+        Write-Warn ('{0} shadow copy(ies) created by {1} in an earlier session still exist:' -f $ours.Count, $Script:AppName)
+        foreach ($r in $ours) {
+            Write-Host ('     {0}  {1}  created {2:yyyy-MM-dd HH:mm}' -f $r.Id, $r.Volume, $r.Created) -ForegroundColor Yellow
+        }
+        Write-Host ''
+        Write-Info 'They were made for an image backup that did not finish cleanly and are no'
+        Write-Info 'longer needed. Until they are destroyed they occupy shadow storage on the'
+        Write-Info 'volume and slow down writes to it.'
+        Write-Host '   Recommendation: destroy them.' -ForegroundColor White
+
+        if (Confirm-YesNo 'Destroy these shadow copies now (recommended)?' $true) {
+            foreach ($r in $ours) { Remove-LeftoverShadow -Row $r | Out-Null }
+        }
+        else {
+            Write-Info 'Shadow copies kept.'
+            Add-SessionAction -Category 'Startup' -Action 'Destroy leftover shadow copies' -Status 'Declined' `
+                -Result ('{0} kept' -f $ours.Count) | Out-Null
+        }
+    }
+
+    if ($other.Count -gt 0) {
+        Write-Host ''
+        Write-Info ('{0} other shadow copy(ies) of the same kind exist that this tool cannot confirm it' -f $other.Count)
+        Write-Info 'created. They may come from an earlier version of this tool, or belong to a'
+        Write-Info 'backup program that still needs them:'
+        foreach ($r in $other) {
+            Write-Host ('     {0}  {1}  created {2:yyyy-MM-dd HH:mm}' -f $r.Id, $r.Volume, $r.Created) -ForegroundColor Gray
+        }
+        if (Confirm-YesNo 'Review these one at a time?' $false) {
+            foreach ($r in $other) {
+                if (Confirm-YesNo ('Destroy {0} on {1}, created {2:yyyy-MM-dd HH:mm}?' -f $r.Id, $r.Volume, $r.Created) $false) {
+                    Remove-LeftoverShadow -Row $r | Out-Null
+                }
+            }
+        }
+    }
+}
+
+function Get-LeftoverWorkDirs {
+    <#
+        Items in the mount folder that are not an active mount point (and do
+        not contain one): folders from mounts that were never cleaned up, and
+        shadow_* links.
+    #>
+    param([AllowEmptyCollection()][object[]]$Mounted = @())
+
+    $mountPaths = @($Mounted | ForEach-Object { ([string]$_.Path).TrimEnd('\') })
+    return @(Get-ChildItem -LiteralPath $Script:MountRoot -Force -ErrorAction SilentlyContinue |
+        Where-Object {
+            $p = $_.FullName.TrimEnd('\')
+            -not ($mountPaths | Where-Object { $_ -ieq $p -or $_.StartsWith($p + '\', [StringComparison]::OrdinalIgnoreCase) })
+        })
+}
+
+function Get-AttachedWindowsIsos {
+    <#
+        Attached ISO files that carry a Windows installation image, i.e. the
+        kind this tool mounts for ISO targets and repair sources.
+    #>
+    $result = New-Object System.Collections.Generic.List[object]
+    try {
+        foreach ($vol in (Get-Volume -ErrorAction Stop | Where-Object { $_.DriveType -eq 'CD-ROM' -and $_.DriveLetter })) {
+            $di = $vol | Get-DiskImage -ErrorAction SilentlyContinue
+            if (-not $di -or -not $di.ImagePath) { continue }
+            $src = '{0}:\sources' -f $vol.DriveLetter
+            if ((Test-Path -LiteralPath (Join-Path $src 'install.wim')) -or
+                (Test-Path -LiteralPath (Join-Path $src 'install.esd'))) {
+                $result.Add([pscustomobject]@{ ImagePath = $di.ImagePath; Drive = ('{0}:' -f $vol.DriveLetter) })
+            }
+        }
+    }
+    catch { Write-Log ('ISO enumeration failed: {0}' -f $_.Exception.Message) 'WARN' }
+    return $result.ToArray()
+}
+
+function Dismount-LeftoverImage {
+    param([Parameter(Mandatory)][object]$Image, [switch]$Save)
+
+    $mode = if ($Save) { '/Commit' } else { '/Discard' }
+    Write-Info ('Unmounting {0} ({1})' -f $Image.Path, $(if ($Save) { 'commit' } else { 'discard' }))
+    $r = Invoke-Dism -NoScope -Quiet -Activity ('Unmounting {0}' -f $Image.Path) `
+                     -Arguments @('/Unmount-Image', ('/MountDir:{0}' -f $Image.Path), $mode)
+    if ($r.ExitCode -eq 0) {
+        Write-Ok 'Unmounted.'
+        Add-SessionAction -Category 'Startup' -Action 'Unmounted leftover image' -Status 'Ok' `
+            -Result $(if ($Save) { 'committed' } else { 'discarded' }) -Detail $Image.Path -ExitCode 0 | Out-Null
+        return $true
+    }
+    Write-Warn ('Unmount returned {0}; the mount point will be cleaned up instead.' -f $r.ExitCode)
+    Add-SessionAction -Category 'Startup' -Action 'Unmount leftover image' -Status 'Warning' `
+        -Result ('dism exit {0}' -f $r.ExitCode) -Detail $Image.Path -ExitCode $r.ExitCode | Out-Null
+    return $false
+}
+
+function Test-LeftoverMounts {
+    <#
+        On start-up, finds work a previous session did not tidy away: images
+        still mounted, Windows ISOs still attached, offline registry hives still
+        loaded, and temporary folders in the mount root. Nothing is removed
+        without the technician's say-so, because an image may be mounted on
+        purpose and still being worked on.
+    #>
+    $mounted = @()
+    try { $mounted = @(Get-WindowsImage -Mounted -ErrorAction Stop) }
+    catch { Write-Log ('Mounted image enumeration failed: {0}' -f $_.Exception.Message) 'WARN' }
+
+    $isos  = @(Get-AttachedWindowsIsos)
+    $hives = @(Get-ChildItem -LiteralPath 'HKLM:\' -ErrorAction SilentlyContinue |
+               Where-Object { $_.PSChildName -like 'CSM_OFFLINE_*' })
+    $temp  = @(Get-LeftoverWorkDirs -Mounted $mounted)
+
+    if ($mounted.Count + $isos.Count + $hives.Count + $temp.Count -eq 0) { return }
+
+    Write-Banner 'Leftovers from a previous session'
+
+    if ($mounted.Count -gt 0) {
+        Write-Warn ('{0} Windows image(s) are still mounted:' -f $mounted.Count)
+        for ($i = 0; $i -lt $mounted.Count; $i++) {
+            $m = $mounted[$i]
+            $ours = ([string]$m.Path).StartsWith($Script:MountRoot, [StringComparison]::OrdinalIgnoreCase)
+            Write-Host ('   [{0}] {1}{2}' -f ($i + 1), $m.Path, $(if ($ours) { '' } else { '   (not mounted by this tool)' })) -ForegroundColor Yellow
+            Write-Host ('       image {0}, index {1}, {2}, status {3}' -f
+                $m.ImagePath, $m.ImageIndex, $m.MountMode, $m.MountStatus) -ForegroundColor Gray
+        }
+    }
+    if ($isos.Count -gt 0) {
+        Write-Warn ('{0} Windows installation ISO(s) are still attached:' -f $isos.Count)
+        foreach ($iso in $isos) { Write-Host ('       {0}  {1}' -f $iso.Drive, $iso.ImagePath) -ForegroundColor Gray }
+    }
+    if ($hives.Count -gt 0) {
+        Write-Warn ('{0} offline registry hive(s) are still loaded (they lock the image they came from).' -f $hives.Count)
+    }
+    if ($temp.Count -gt 0) {
+        Write-Warn ('{0} temporary item(s) remain in {1}.' -f $temp.Count, $Script:MountRoot)
+    }
+
+    Write-Host ''
+    Write-Info 'Leftover mounts keep image files locked, hold disk space and block new mounts'
+    Write-Info 'of the same image. It is recommended to unmount them and clear the temporary'
+    Write-Info 'folders UNLESS you are still working on one of these mounted images.'
+
+    Write-Host ''
+    Write-Host '   [1] Unmount everything and clear the temporary folders (recommended)' -ForegroundColor Gray
+    if ($mounted.Count -gt 0) {
+        Write-Host '   [2] Decide for each mounted image (keep, save, or discard)' -ForegroundColor Gray
+    }
+    Write-Host '   [0] Leave everything as it is - I am still working on a mounted image' -ForegroundColor Gray
+
+    $valid = if ($mounted.Count -gt 0) { @('0','1','2') } else { @('0','1') }
+    $pick  = Read-Choice -Valid $valid
+    if ($pick -eq '0') {
+        Write-Info 'Previous-session mounts and folders were left in place.'
+        Add-SessionAction -Category 'Startup' -Action 'Clear previous-session leftovers' -Status 'Declined' `
+            -Result ('{0} mount(s), {1} temp item(s) kept' -f $mounted.Count, $temp.Count) | Out-Null
+        return
+    }
+
+    $started = Get-Date
+    $kept    = New-Object System.Collections.Generic.List[string]
+    $keepIsos = $false
+
+    # --- mounted images ----------------------------------------------------
+    if ($pick -eq '1') {
+        $rw = @($mounted | Where-Object { [string]$_.MountMode -match 'ReadWrite' -and [string]$_.MountStatus -eq 'Ok' })
+        if ($rw.Count -gt 0) {
+            Write-Warn ('{0} image(s) are mounted read/write. Unmounting discards any changes not yet committed.' -f $rw.Count)
+            if (-not (Confirm-YesNo 'Discard the uncommitted changes and unmount?' $true)) {
+                Write-Info 'Use option [2] to commit an image instead. Nothing was changed.'
+                return
+            }
+        }
+        foreach ($m in $mounted) { Dismount-LeftoverImage -Image $m | Out-Null }
+    }
+    else {
+        foreach ($m in $mounted) {
+            Write-Host ''
+            Write-Host ('   {0}  ({1}, {2})' -f $m.Path, $m.MountMode, $m.MountStatus) -ForegroundColor White
+            $canSave = ([string]$m.MountMode -match 'ReadWrite') -and ([string]$m.MountStatus -eq 'Ok')
+            if ($canSave) {
+                Write-Host '   [D] Discard changes and unmount   [S] Save (commit) and unmount   [K] Keep mounted' -ForegroundColor Gray
+                $a = Read-Choice -Valid @('D','d','S','s','K','k') -Prompt 'Choose'
+            }
+            else {
+                Write-Host '   [D] Unmount   [K] Keep mounted' -ForegroundColor Gray
+                $a = Read-Choice -Valid @('D','d','K','k') -Prompt 'Choose'
+            }
+            switch -Regex ($a) {
+                '^[Dd]$' { Dismount-LeftoverImage -Image $m | Out-Null }
+                '^[Ss]$' { Dismount-LeftoverImage -Image $m -Save | Out-Null }
+                default  { $kept.Add(([string]$m.Path).TrimEnd('\')); Write-Info 'Kept mounted.' }
+            }
+        }
+        # An attached ISO may be the source of a kept image.
+        if ($kept.Count -gt 0 -and $isos.Count -gt 0) {
+            $keepIsos = Confirm-YesNo 'Leave the attached ISO(s) in place as well?' $true
+        }
+    }
+
+    # Clears the bookkeeping of mounts that no longer exist or are orphaned.
+    Write-Info 'Cleaning up image mount points...'
+    Invoke-Dism -NoScope -Quiet -Activity 'Cleaning up image mount points' `
+                -Arguments @('/Cleanup-Mountpoints') | Out-Null
+
+    # --- ISOs ----------------------------------------------------------------
+    if (-not $keepIsos) {
+        foreach ($iso in $isos) {
+            Dismount-DiskImage -ImagePath $iso.ImagePath -ErrorAction SilentlyContinue | Out-Null
+            Write-Ok ('Detached {0}' -f $iso.ImagePath)
+        }
+    }
+
+    # --- registry hives ------------------------------------------------------
+    if ($hives.Count -gt 0) {
+        [gc]::Collect(); [gc]::WaitForPendingFinalizers()
+        foreach ($h in $hives) {
+            & reg.exe unload ('HKLM\{0}' -f $h.PSChildName) 2>&1 | Out-Null
+            if ($LASTEXITCODE -eq 0) { Write-Ok ('Unloaded hive {0}' -f $h.PSChildName) }
+            else { Write-Warn ('Could not unload hive {0}; a restart releases it.' -f $h.PSChildName) }
+        }
+    }
+
+    # --- temporary folders ----------------------------------------------------
+    # Re-read the mounts: only what is genuinely no longer mounted is removed.
+    $stillMounted = @()
+    try { $stillMounted = @(Get-WindowsImage -Mounted -ErrorAction Stop) } catch { }
+    $removed = 0; $failed = 0
+    foreach ($item in @(Get-LeftoverWorkDirs -Mounted $stillMounted)) {
+        if (Remove-WorkDirectory -Path $item.FullName) { $removed++ }
+        else { $failed++; Write-Warn ('Could not remove {0}; it may still be in use.' -f $item.FullName) }
+    }
+    if ($removed -gt 0) { Write-Ok ('{0} temporary item(s) removed from {1}.' -f $removed, $Script:MountRoot) }
+
+    Add-SessionAction -Category 'Startup' -Action 'Cleared previous-session leftovers' `
+        -Status $(if ($failed -gt 0) { 'Warning' } else { 'Ok' }) -Started $started `
+        -Result ('{0} mount(s) kept, {1} temp item(s) removed, {2} failed' -f $kept.Count, $removed, $failed) | Out-Null
+}
+
+#endregion
+
+#region ----------------------------------------------------------- Start-up
 
 function Start-App {
     $host.UI.RawUI.WindowTitle = "$Script:AppName $Script:AppVersion"
@@ -4189,7 +5412,10 @@ function Start-App {
         Write-Warn 'The Dism PowerShell module is unavailable; ISO servicing and reports will be limited.'
     }
 
-    Test-StaleMounts
+    # Shadow copies first: their links live in the mount folder that the
+    # leftover-mount check clears afterwards.
+    Test-LeftoverShadowCopies
+    Test-LeftoverMounts
 
     Write-Info ('Session : {0}' -f $Script:SessionId)
 
