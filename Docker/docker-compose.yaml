@@ -1,0 +1,29 @@
+services:
+  nodebb:
+    image: nodebb/docker:latest
+    container_name: nodebb-app
+    restart: unless-stopped
+
+    ports:
+      - "${NODEBB_HOST_PORT:-4567}:4567"
+
+    environment:
+      TZ: ${TZ:-America/Los_Angeles}
+
+    volumes:
+      - nodebb_data:/usr/src/app
+
+    networks:
+      - database
+
+    security_opt:
+      - no-new-privileges:true
+
+networks:
+  database:
+    external: true
+    name: ${POSTGRES_NETWORK_NAME:-database}
+
+volumes:
+  nodebb_data:
+    name: ${NODEBB_VOLUME_NAME:-nodebb_data}
